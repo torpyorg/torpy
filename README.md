@@ -1,4 +1,4 @@
-pytor [Python Versions]
+pytor ![Python Versions]
 =====
 
 A pure-Python implementation of the Tor protocol.
@@ -95,7 +95,7 @@ For more examples see [test_integration.py](https://github.com/pytorx/pytor/test
 
 Installation
 ------------
-* `pip3 install pytor`
+* `pip3 install git+https://github.com/pytorx/pytor.git`
 
 
 Contribute
@@ -125,6 +125,7 @@ References
 - [Mini-tor](https://github.com/wbenny/mini-tor)
 - [Pycepa](https://github.com/pycepa/pycepa)
 - [TorPylle](https://github.com/cea-sec/TorPylle)
+- [TinyTor](https://github.com/Marten4n6/TinyTor)
 
 
 [Python Versions]:      https://img.shields.io/badge/python-3.6,%203.7-blue.svg
