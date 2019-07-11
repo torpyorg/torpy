@@ -21,7 +21,7 @@ from multiprocessing.pool import ThreadPool
 
 from pytor import TorClient
 from pytor.http.adapter import TorHttpAdapter
-from pytor.http.requests import tor_requests_session
+from pytor.http.requests import TorRequests, tor_requests_session
 from pytor.hiddenservice import HiddenService
 from pytor.utils import AuthType, recv_all
 
@@ -66,7 +66,7 @@ def test_onion_raw():
             assert 'StickyNotes' in recv, 'wrong data received'
 
 
-def test_requests():
+def test_adapter():
     tor = TorClient()
     with tor.get_guard() as guard:
         adapter = TorHttpAdapter(guard, 3)
@@ -88,27 +88,29 @@ def test_requests():
 
 def test_multi_threaded():
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)} if HS_BASIC_HOST and HS_BASIC_AUTH else None
-    with tor_requests_session(auth_data=auth_data) as s:
+
+    with TorRequests(auth_data=auth_data) as tor_requests:
         links = ['https://httpbin.org/headers', 'https://google.com', 'https://yahoo.com', 'http://facebookcorewwwi.onion']
         if HS_BASIC_HOST:
             links.append('http://' + HS_BASIC_HOST)
         links = links * 10
 
-        def process(link):
-            try:
-                logger.debug("get link: %s", link)
-                r = s.get(link, timeout=30)
-                logger.warning("get link %s finish: %s", link, r)
-                return r
-            except:
-                logger.exception("get link %s error", link)
+        with tor_requests.get_session() as sess:
+            def process(link):
+                try:
+                    logger.debug("get link: %s", link)
+                    r = sess.get(link, timeout=30)
+                    logger.warning("get link %s finish: %s", link, r)
+                    return r
+                except:
+                    logger.exception("get link %s error", link)
 
-        pool = ThreadPool(10)
-        for i, w in enumerate(pool._pool):
-            w.name = 'Worker{}'.format(i)
-        results = pool.map(process, links)
-        pool.close()
-        pool.join()
+            pool = ThreadPool(10)
+            for i, w in enumerate(pool._pool):
+                w.name = 'Worker{}'.format(i)
+            results = pool.map(process, links)
+            pool.close()
+            pool.join()
     logger.debug("test_multi_threaded ends: %r", results)
 
 
@@ -126,7 +128,7 @@ def test_basic_auth():
         # Create tor stream to host
         with circuit.create_stream((hs, 80)) as stream:
             # Send some data to it
-            stream.send(b'GET /index.html HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hs.onion.encode())
+            stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hs.onion.encode())
             recv = recv_all(stream).decode()
             logger.warning('recv: %s', recv)
 
@@ -145,7 +147,7 @@ def test_stealth_auth():
         # Create tor stream to host
         with circuit.create_stream((hs, 80)) as stream:
             # Send some data to it
-            stream.send(b'GET /index.html HTTP/1.0\r\nHost: %s\r\n\r\n' % hs.hostname.encode())
+            stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hs.hostname.encode())
             recv = recv_all(stream).decode()
             logger.warning('recv: %s', recv)
 
@@ -165,7 +167,7 @@ def test_basic_auth_pre():
         # Create tor stream to host
         with circuit.create_stream((hidden_service, 80)) as stream:
             # Send some data to it
-            stream.send(b'GET /index.html HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hidden_service.encode())
+            stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hidden_service.encode())
             recv = recv_all(stream).decode()
             logger.warning('recv: %s', recv)
 
@@ -178,7 +180,7 @@ def test_requests_hidden():
         return
 
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)}
-    with tor_requests_session(auth_data=auth_data) as s:
-        r = s.get('http://{}/index.html'.format(HS_BASIC_HOST))
+    with tor_requests_session(auth_data=auth_data) as sess:
+        r = sess.get('http://{}/'.format(HS_BASIC_HOST))
         logger.warning(r)
         logger.warning(r.text)

@@ -133,7 +133,7 @@ class OnionRouter:
         return Descriptor(**descriptor_info)
 
     def __str__(self):
-        return '{}:{} <{}; {}>'.format(self.ip, self.tor_port, self.nickname, self.version)
+        return '{}:{} ({}; {})'.format(self.ip, self.tor_port, self.nickname, self.version)
 
 
 @unique

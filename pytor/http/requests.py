@@ -21,17 +21,38 @@ from pytor.client import TorClient
 from pytor.http.adapter import TorHttpAdapter
 
 
-@contextmanager
-def tor_requests_session(hops_count=3, headers=None, auth_data=None):
-    # convert lists to dict
-    headers = dict(headers) if headers else {'User-Agent': 'Mozilla/5.0'}
-    auth_data = dict(auth_data) if auth_data else auth_data
+class TorRequests:
+    def __init__(self, hops_count=3, headers=None, auth_data=None):
+        self._hops_count = hops_count
+        self._headers = dict(headers) if headers else {'User-Agent': 'Mozilla/5.0'}
+        self._auth_data = dict(auth_data) if auth_data else auth_data
 
-    tor = TorClient(auth_data=auth_data)
-    with tor.get_guard() as guard:
-        adapter = TorHttpAdapter(guard, hops_count)
+    def __enter__(self):
+        self._tor = TorClient(auth_data=self._auth_data)
+        self._guard = self._tor.get_guard()
+        self._guard.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._guard.close()
+
+    def send(self, method, url, data=None, **kwargs):
+        with self.get_session() as s:
+            r = requests.Request(method, url, data, **kwargs)
+            return s.send(r.prepare())
+
+    @contextmanager
+    def get_session(self):
+        adapter = TorHttpAdapter(self._guard, self._hops_count)
         with requests.Session() as s:
-            s.headers.update(headers)
+            s.headers.update(self._headers)
             s.mount('http://', adapter)
             s.mount('https://', adapter)
+            yield s
+
+
+@contextmanager
+def tor_requests_session(hops_count=3, headers=None, auth_data=None):
+    with TorRequests(hops_count, headers, auth_data) as tr:
+        with tr.get_session() as s:
             yield s
