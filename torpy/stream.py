@@ -20,9 +20,9 @@ from contextlib import contextmanager
 
 from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 
-from pytor.cells import *
-from pytor.hiddenservice import HiddenService
-from pytor.utils import chunks
+from torpy.cells import *
+from torpy.hiddenservice import HiddenService
+from torpy.utils import chunks
 
 
 logger = logging.getLogger(__name__)

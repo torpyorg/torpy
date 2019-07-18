@@ -20,8 +20,8 @@ from argparse import ArgumentParser
 
 from requests import Request
 
-from pytor.http.requests import tor_requests_session
-from pytor.utils import register_logger
+from torpy.http.requests import tor_requests_session
+from torpy.utils import register_logger
 
 logger = logging.getLogger(__name__)
 

@@ -17,8 +17,8 @@ import requests
 
 from contextlib import contextmanager
 
-from pytor.client import TorClient
-from pytor.http.adapter import TorHttpAdapter
+from torpy.client import TorClient
+from torpy.http.adapter import TorHttpAdapter
 
 
 class TorRequests:

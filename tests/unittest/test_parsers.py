@@ -15,7 +15,7 @@
 
 import pytest
 
-from pytor.parsers import *
+from torpy.parsers import *
 
 
 @pytest.fixture

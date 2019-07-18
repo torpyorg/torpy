@@ -25,8 +25,8 @@ import threading
 from contextlib import contextmanager
 from argparse import ArgumentParser
 
-from pytor.utils import recv_exact, register_logger
-from pytor.client import TorClient
+from torpy.utils import recv_exact, register_logger
+from torpy.client import TorClient
 
 
 logger = logging.getLogger(__name__)

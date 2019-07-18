@@ -18,9 +18,9 @@ import logging
 
 from enum import IntEnum, unique
 
-from pytor.crypto_common import sha1
-from pytor.crypto import hybrid_encrypt
-from pytor.utils import to_hex, fp_to_str, AuthType
+from torpy.crypto_common import sha1
+from torpy.crypto import hybrid_encrypt
+from torpy.utils import to_hex, fp_to_str, AuthType
 
 logger = logging.getLogger(__name__)
 

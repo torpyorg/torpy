@@ -16,9 +16,9 @@
 import hmac
 import logging
 
-from pytor.crypto_common import *
-from pytor.crypto import kdf_tor
-from pytor.utils import to_hex
+from torpy.crypto_common import *
+from torpy.crypto import kdf_tor
+from torpy.utils import to_hex
 
 logger = logging.getLogger(__name__)
 

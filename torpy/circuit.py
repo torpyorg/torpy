@@ -18,13 +18,13 @@ import functools
 
 from contextlib import contextmanager
 
-from pytor.keyagreement import NtorKeyAgreement, TapKeyAgreement
-from pytor.hiddenservice import HiddenServiceConnector, DescriptorNotAvailable
-from pytor.cells import *
-from pytor.stream import StreamsManager, TorWindow
-from pytor.cell_socket import NoDataException
-from pytor.crypto_state import CryptoState
-from pytor.utils import ignore, retry, log_retry
+from torpy.keyagreement import NtorKeyAgreement, TapKeyAgreement
+from torpy.hiddenservice import HiddenServiceConnector, DescriptorNotAvailable
+from torpy.cells import *
+from torpy.stream import StreamsManager, TorWindow
+from torpy.cell_socket import NoDataException
+from torpy.crypto_state import CryptoState
+from torpy.utils import ignore, retry, log_retry
 
 logger = logging.getLogger(__name__)
 

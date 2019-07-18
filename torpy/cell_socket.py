@@ -20,8 +20,8 @@ import socket
 import logging
 import threading
 
-from pytor.cells import TorCell, TorCommands, CellCerts, CellVersions, CellAuthChallenge, CellNetInfo
-from pytor.utils import to_hex, recv_exact
+from torpy.cells import TorCell, TorCommands, CellCerts, CellVersions, CellAuthChallenge, CellNetInfo
+from torpy.utils import to_hex, recv_exact
 
 logger = logging.getLogger(__name__)
 

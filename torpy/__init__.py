@@ -12,15 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-from pytor.utils import recv_all
-
-
-class HttpClient:
-    def __init__(self, sock):
-        self._sock = sock
-
-    def get(self, host, path):
-        http_query = 'GET {} HTTP/1.0\r\nHost: {}\r\n\r\n'.format(path, host)
-        self._sock.send(http_query.encode())
-        return recv_all(self._sock)
+from torpy.client import TorClient

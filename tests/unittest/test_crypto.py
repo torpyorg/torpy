@@ -16,8 +16,8 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 
-from pytor.crypto import kdf_tor
-from pytor.crypto_common import dh_public_to_bytes, dh_shared
+from torpy.crypto import kdf_tor
+from torpy.crypto_common import dh_public_to_bytes, dh_shared
 
 
 def to_bytes(hex_str):

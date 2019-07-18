@@ -22,8 +22,8 @@ from base64 import b32decode, b64decode
 
 import requests
 
-from pytor.utils import retry, log_retry
-from pytor.router import OnionRouter, RouterFlags
+from torpy.utils import retry, log_retry
+from torpy.router import OnionRouter, RouterFlags
 logger = logging.getLogger(__name__)
 
 
@@ -346,3 +346,4 @@ class TorConsensusParser:
             # TODO: calculate SHA1/SHA256
 
         return results_list, voters_list, valid_after, fresh_until, valid_until
+

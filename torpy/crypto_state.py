@@ -16,9 +16,9 @@
 import struct
 import logging
 
-from pytor.crypto_common import *
-from pytor.utils import to_hex
-from pytor.cells import RelayedTorCell
+from torpy.crypto_common import *
+from torpy.utils import to_hex
+from torpy.cells import RelayedTorCell
 
 logger = logging.getLogger(__name__)
 

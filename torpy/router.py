@@ -21,8 +21,8 @@ from enum import Flag, auto, unique
 import requests
 from requests.exceptions import ConnectionError
 
-from pytor.utils import to_hex, cached_property, fp_to_str
-from pytor.parsers import RouterDescriptorParser
+from torpy.utils import to_hex, cached_property, fp_to_str
+from torpy.parsers import RouterDescriptorParser
 
 
 logger = logging.getLogger(__name__)

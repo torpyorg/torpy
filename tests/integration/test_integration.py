@@ -19,11 +19,11 @@ import requests
 
 from multiprocessing.pool import ThreadPool
 
-from pytor import TorClient
-from pytor.http.adapter import TorHttpAdapter
-from pytor.http.requests import TorRequests, tor_requests_session
-from pytor.hiddenservice import HiddenService
-from pytor.utils import AuthType, recv_all
+from torpy import TorClient
+from torpy.http.adapter import TorHttpAdapter
+from torpy.http.requests import TorRequests, tor_requests_session
+from torpy.hiddenservice import HiddenService
+from torpy.utils import AuthType, recv_all
 
 
 logging.getLogger('requests').setLevel(logging.CRITICAL)

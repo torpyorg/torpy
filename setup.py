@@ -23,34 +23,31 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='pytor',
+    name='torpy',
     version='1.0.1',
     description='Pure python tor protocol implementation',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/pytorx/pytor',
+    url='https://github.com/torpyorg/torpy',
     author='James Brown',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
     keywords='python proxy anonymity privacy socks tor protocol onion hiddenservice',
     packages=find_packages(exclude=['tests']),
-    python_requires='>=3.0',
+    python_requires='>=3.6',
     install_requires=['cryptography', 'requests>=2.8.0,<2.12.0'],
     entry_points={'console_scripts': [
-            'pytor_cli=pytor.cli.console:main',
-            'pytor_socks=pytor.cli.socks:main',
+            'torpy_cli=torpy.cli.console:main',
+            'torpy_socks=torpy.cli.socks:main',
         ],
     },
     project_urls={
-        'Bug Reports': 'https://github.com/pytorx/pytor/issues',
-        'Source': 'https://github.com/pytorx/pytor/',
+        'Bug Reports': 'https://github.com/torpyorg/torpy/issues',
+        'Source': 'https://github.com/torpyorg/torpy/',
     },
 )

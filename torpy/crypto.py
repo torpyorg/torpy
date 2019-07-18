@@ -16,7 +16,7 @@
 import os
 import logging
 
-from pytor.crypto_common import *
+from torpy.crypto_common import *
 
 logger = logging.getLogger(__name__)
 

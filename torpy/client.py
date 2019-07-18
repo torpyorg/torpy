@@ -19,11 +19,11 @@ import threading
 
 from contextlib import contextmanager
 
-from pytor.consesus import TorConsensus
-from pytor.circuit import TorCircuit, TorReceiver, CellHandlerManager, CircuitExtendError, CellTimeoutError
-from pytor.cells import *
-from pytor.utils import retry, log_retry
-from pytor.cell_socket import TorCellSocket
+from torpy.consesus import TorConsensus
+from torpy.circuit import TorCircuit, TorReceiver, CellHandlerManager, CircuitExtendError, CellTimeoutError
+from torpy.cells import *
+from torpy.utils import retry, log_retry
+from torpy.cell_socket import TorCellSocket
 
 logger = logging.getLogger(__name__)
 

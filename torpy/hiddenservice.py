@@ -18,11 +18,11 @@ import time
 
 from base64 import b32decode, b32encode, b64decode, b64encode
 
-from pytor.cells import *
-from pytor.parsers import HSDescriptorParser, IntroPointParser
-from pytor.crypto_common import *
-from pytor.http.client import HttpClient
-from pytor.utils import AuthType
+from torpy.cells import *
+from torpy.parsers import HSDescriptorParser, IntroPointParser
+from torpy.crypto_common import *
+from torpy.http.client import HttpClient
+from torpy.utils import AuthType
 
 
 # ref tor: connection_ap_handle_onion

@@ -13,7 +13,14 @@
 # limitations under the License.
 #
 
-from pytor.cli.console import main
+from torpy.utils import recv_all
 
-if __name__ == '__main__':
-    main()
+
+class HttpClient:
+    def __init__(self, sock):
+        self._sock = sock
+
+    def get(self, host, path):
+        http_query = 'GET {} HTTP/1.0\r\nHost: {}\r\n\r\n'.format(path, host)
+        self._sock.send(http_query.encode())
+        return recv_all(self._sock)
