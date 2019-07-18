@@ -127,7 +127,7 @@ For more examples see [test_integration.py](https://github.com/torpyorg/torpy/bl
 
 Installation
 ------------
-* `pip3 install git+https://github.com/torpyorg/torpy.git`
+* `pip3 install torpy`
 
 
 Contribute
