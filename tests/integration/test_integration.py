@@ -15,16 +15,15 @@
 
 import os
 import logging
-import requests
-
 from multiprocessing.pool import ThreadPool
 
-from torpy import TorClient
-from torpy.http.adapter import TorHttpAdapter
-from torpy.http.requests import TorRequests, tor_requests_session
-from torpy.hiddenservice import HiddenService
-from torpy.utils import AuthType, recv_all
+import requests
 
+from torpy import TorClient
+from torpy.utils import AuthType, recv_all
+from torpy.http.adapter import TorHttpAdapter
+from torpy.hiddenservice import HiddenService
+from torpy.http.requests import TorRequests, tor_requests_session
 
 logging.getLogger('requests').setLevel(logging.CRITICAL)
 logging.basicConfig(format="[%(asctime)s] [%(threadName)-16s] %(message)s", level=logging.DEBUG)
@@ -76,7 +75,7 @@ def test_adapter():
             s.mount('http://', adapter)
             s.mount('https://', adapter)
 
-            r = s.get('https://google.com')
+            r = s.get('https://google.com', timeout=30)
             logger.warning(r)
             logger.warning(r.text)
             assert "</body></html>" in r.text
@@ -90,7 +89,11 @@ def test_multi_threaded():
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)} if HS_BASIC_HOST and HS_BASIC_AUTH else None
 
     with TorRequests(auth_data=auth_data) as tor_requests:
-        links = ['https://httpbin.org/headers', 'https://google.com', 'https://yahoo.com', 'http://facebookcorewwwi.onion']
+        links = [
+            'https://httpbin.org/headers',
+            'https://google.com',
+            'https://yahoo.com',
+            'http://facebookcorewwwi.onion']
         if HS_BASIC_HOST:
             links.append('http://' + HS_BASIC_HOST)
         links = links * 10
@@ -102,7 +105,7 @@ def test_multi_threaded():
                     r = sess.get(link, timeout=30)
                     logger.warning("get link %s finish: %s", link, r)
                     return r
-                except:
+                except BaseException:
                     logger.exception("get link %s error", link)
 
             pool = ThreadPool(10)
@@ -116,7 +119,6 @@ def test_multi_threaded():
 
 def test_basic_auth():
     """Connecting to Hidden Service with 'Basic' authorization."""
-
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
         logger.warning("Skip test_basic_auth()")
         return
@@ -135,7 +137,6 @@ def test_basic_auth():
 
 def test_stealth_auth():
     """Connecting to Hidden Service with 'Stealth' authorization."""
-
     if not HS_STEALTH_HOST or not HS_STEALTH_AUTH:
         logger.warning("Skip test_stealth_auth()")
         return
@@ -154,7 +155,6 @@ def test_stealth_auth():
 
 def test_basic_auth_pre():
     """Using pre-defined authorization data for making HTTP requests."""
-
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
         logger.warning("Skip test_basic_auth()")
         return
@@ -174,13 +174,12 @@ def test_basic_auth_pre():
 
 def test_requests_hidden():
     """Using pre-defined authorization data for making HTTP requests by tor_requests_session."""
-
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
         logger.warning("Skip test_requests_hidden()")
         return
 
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)}
     with tor_requests_session(auth_data=auth_data) as sess:
-        r = sess.get('http://{}/'.format(HS_BASIC_HOST))
+        r = sess.get('http://{}/'.format(HS_BASIC_HOST), timeout=30)
         logger.warning(r)
         logger.warning(r.text)

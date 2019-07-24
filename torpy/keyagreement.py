@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 
-import hmac
 import logging
 
-from torpy.crypto_common import *
 from torpy.crypto import kdf_tor
-from torpy.utils import to_hex
+from torpy.crypto_common import dh_private, dh_public, dh_public_to_bytes, dh_public_from_bytes, dh_shared,\
+    curve25519_get_shared, curve25519_private, curve25519_public_from_private, curve25519_public_from_bytes,\
+    curve25519_to_bytes, hkdf_sha256, hmac
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class TapKeyAgreement:
         auth = handshake_data[128:]  # tap auth is SHA1, 20 in bytes?
         assert len(auth) == 20, 'recieved wrong sha1 len'
 
-        peer_pub_key = df_public_from_bytes(peer_pub_key_bytes)
+        peer_pub_key = dh_public_from_bytes(peer_pub_key_bytes)
         shared_secret = dh_shared(self._private_key, peer_pub_key)
         computed_auth, key_material = kdf_tor(shared_secret)
         if computed_auth != auth:
@@ -141,18 +141,14 @@ class NtorKeyAgreement:
         self.t_verify = self.protoid + b':verify'
         self.m_expand = self.protoid + b':key_expand'
 
-        #logger.debug("identity_fingerprint: " + to_hex(onion_router.fingerprint))
-
         # To perform the handshake, the client needs to know an identity key
         # digest for the server, and an ntor onion key (a curve25519 public
         # key) for that server. Call the ntor onion key "B".  The client
         # generates a temporary keypair:
         #     x,X = KEYGEN()
         self._x = curve25519_private()
-        #logger.debug("ntor private key: " + to_hex(curve25519_to_bytes(self._x)))
 
         self._X = curve25519_public_from_private(self._x)
-        #logger.debug("ntor public key: " + to_hex(curve25519_to_bytes(self._X)))
 
         self._fingerprint_bytes = onion_router.fingerprint
 
@@ -174,20 +170,19 @@ class NtorKeyAgreement:
         # The server's handshake reply is:
         # SERVER_PK   Y                       [G_LENGTH bytes]
         # AUTH        H(auth_input, t_mac)    [H_LENGTH bytes]
-        Y = handshake_data[:32]     # ntor data curve25519::public_key::key_size_in_bytes
+        y = handshake_data[:32]     # ntor data curve25519::public_key::key_size_in_bytes
         auth = handshake_data[32:]  # ntor auth is SHA1, 32 in bytes?
         assert len(auth) == 32      #
 
         # The client then checks Y is in G^* [see NOTE below], and computes
 
         # secret_input = EXP(Y,x) | EXP(B,x) | ID | B | X | Y | PROTOID
-
-        si  = curve25519_get_shared(self._x, curve25519_public_from_bytes(Y))
+        si = curve25519_get_shared(self._x, curve25519_public_from_bytes(y))
         si += curve25519_get_shared(self._x, self._B)
         si += self._fingerprint_bytes
         si += curve25519_to_bytes(self._B)
         si += curve25519_to_bytes(self._X)
-        si += Y
+        si += y
         si += b'ntor-curve25519-sha256-1'
 
         # KEY_SEED = H(secret_input, t_key)
@@ -199,7 +194,7 @@ class NtorKeyAgreement:
         ai = verify
         ai += self._fingerprint_bytes
         ai += curve25519_to_bytes(self._B)
-        ai += Y
+        ai += y
         ai += curve25519_to_bytes(self._X)
         ai += self.protoid
         ai += b'Server'

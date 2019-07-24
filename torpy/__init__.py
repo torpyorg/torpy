@@ -13,3 +13,5 @@
 # limitations under the License.
 #
 from torpy.client import TorClient
+
+__all__ = ['TorClient']

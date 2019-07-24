@@ -16,14 +16,14 @@
 import random
 import logging
 import functools
+from base64 import b32decode
+from threading import Lock
 
-from datetime import datetime
-from base64 import b32decode, b64decode
+from torpy.utils import retry, log_retry, http_get
+from torpy.router import RouterFlags
+from torpy.documents import TorConsensusDocument
+from torpy.cache_storage import TorCacheDirStorage
 
-import requests
-
-from torpy.utils import retry, log_retry
-from torpy.router import OnionRouter, RouterFlags
 logger = logging.getLogger(__name__)
 
 
@@ -41,24 +41,22 @@ class DirectoryAuthority:
 
     @property
     def name(self):
-        """
-        :return: Nickname of this authority
-        """
+        """Nickname of this authority."""
         return self._name
 
     @property
     def consensus_url(self):
-        """
-        :return: Consensus url of this authority
-        """
+        """Consensus url of this authority."""
         return 'http://{}/tor/status-vote/current/consensus'.format(self._address)
 
     def download_consensus(self):
         """
-        Download consensus from this authority. Can raise exceptions if authority not available
+        Download consensus from this authority.
+
+        Can raise exceptions if authority not available.
         :return: Consensus text
         """
-        return requests.get(self.consensus_url, timeout=10).text
+        return http_get(self.consensus_url)
 
 
 class DirectoryAuthoritiesList:
@@ -97,78 +95,65 @@ class DirectoryAuthoritiesList:
 
     def get_random(self):
         """
-        :return: A random directory authority.
+        Return random directory authority.
+
         :rtype: DirectoryAuthority
         """
         return random.choice(self._directory_authorities)
 
 
-class TorConsensusDocument:
-    def __init__(self, routers_list, voters, valid_after, fresh_until, valid_until):
-        self._routers_list = routers_list
-        self._voters = voters
-        self._valid_after = valid_after
-        self._fresh_until = fresh_until
-        self._valid_until = valid_until
-
-    @classmethod
-    def from_raw_string(cls, raw_consensus, link_consensus=None):
-        parser = TorConsensusParser()
-        results_list, voters_list, valid_after, fresh_until, valid_until = parser.parse(raw_consensus, link_consensus)
-        return cls(results_list, voters_list, valid_after, fresh_until, valid_until)
-
-    @property
-    def routers_list(self):
-        return self._routers_list
-
-    @property
-    def is_fresh(self):
-        # TODO: check fresh_until/valid_until
-        return True
-
-
 class TorConsensus:
-    def __init__(self, directory_authorities=None):
-        self._directory_authorities = directory_authorities or DirectoryAuthoritiesList()
-        self._document = None
+    def __init__(self, authorities=None, cache_storage=None):
+        self._lock = Lock()
+        self._authorities = authorities or DirectoryAuthoritiesList()
+        self._cache_storage = cache_storage or TorCacheDirStorage()
+        self._document = self._cache_storage.load_document(TorConsensusDocument, link_consensus=self)
         self.renew()
+
+    @property
+    def document(self):
+        self.renew()
+        return self._document
 
     @retry(3, Exception, log_func=functools.partial(log_retry, msg='Retry with another authority...'))
     def renew(self, force=False):
-        if not force and self._document and self._document.is_fresh:
-            return
+        with self._lock:
+            if not force and self._document and self._document.is_fresh:
+                return
 
-        # tor ref: networkstatus_set_current_consensus
-        authority = self._directory_authorities.get_random()
-        logger.info('Downloading new consensus from %s authority', authority.name)
-        consensus_raw = authority.download_consensus()
+            # tor ref: networkstatus_set_current_consensus
+            authority = self._authorities.get_random()
+            logger.info('Downloading new consensus from %s authority', authority.name)
+            consensus_raw = authority.download_consensus()
 
-        # Make sure it's parseable
-        document = TorConsensusDocument.from_raw_string(consensus_raw, self)
+            # Make sure it's parseable
+            document = TorConsensusDocument(consensus_raw, self)
 
-        # TODO: Make sure it's signed enough
-        # tor ref: networkstatus_check_consensus_signature
-        # ...
+            # TODO: Make sure it's signed enough
+            # tor ref: networkstatus_check_consensus_signature
+            # ...
 
-        # Use new consensus document
-        self._document = document
+            # Use new consensus document
+            self._document = document
+            self._cache_storage.save_document(document)
 
     def get_router(self, fingerprint):
         # TODO: make mapping with fingerprint as key?
         fingerprint_b = b32decode(fingerprint.upper())
         return next(
-            onion_router for onion_router in self._document.routers_list if onion_router.fingerprint == fingerprint_b)
+            onion_router for onion_router in self.document.routers_list if onion_router.fingerprint == fingerprint_b)
 
     def get_routers(self, flags=None, has_dir_port=True):
         """
-        Select consensus routers that satisfy certain parameters
+        Select consensus routers that satisfy certain parameters.
+
         :param flags: Router flags
         :param has_dir_port: Has dir port
         :return: return list of routers
         """
         results = []
 
-        for onion_router in self._document.routers_list:
+        for onion_router in self.document.routers_list:
             if flags and not onion_router.flags.all_present(flags):
                 continue
             if has_dir_port and not onion_router.dir_port:
@@ -179,7 +164,8 @@ class TorConsensus:
 
     def get_random_router(self, flags=None, has_dir_port=None):
         """
-        Select a random consensus router that satisfy certain parameters
+        Select a random consensus router that satisfy certain parameters.
+
         :param flags: Router flags
         :param has_dir_port: Has dir port
         :return: router
@@ -206,7 +192,8 @@ class TorConsensus:
     @retry(5, BaseException, log_func=functools.partial(log_retry, msg='Retry with another router...'))
     def get_descriptor(self, fingerprint):
         """
-        Get router descriptor by its fingerprint through randomly selected router
+        Get router descriptor by its fingerprint through randomly selected router.
+
         :param fingerprint:
         :return:
         """
@@ -215,19 +202,7 @@ class TorConsensus:
 
     def get_responsibles(self, hidden_service):
         """
-        rend-spec.txt
-        1.4.
-        At any time, there are 6 hidden service directories responsible for
-        keeping replicas of a descriptor; they consist of 2 sets of 3 hidden
-        service directories with consecutive onion IDs. Bob's OP learns about
-        the complete list of hidden service directories by filtering the
-        consensus status document received from the directory authorities. A
-        hidden service directory is deemed responsible for a descriptor ID if
-        it has the HSDir flag and its identity digest is one of the first three
-        identity digests of HSDir relays following the descriptor ID in a
-        circular list. A hidden service directory will only accept a descriptor
-        whose timestamp is no more than three days before or one day after the
-        current time according to the directory's clock.
+        Get responsible dir for hidden service specified.
 
         :param hidden_service:
         :return:
@@ -243,107 +218,3 @@ class TorConsensus:
                         idx = (i + 1 + j) % len(hsdir_router_list)
                         yield hsdir_router_list[idx]
                     break
-
-
-class TorConsensusParser:
-    def __init__(self, validate_flags=None):
-        self.validate_flags = validate_flags or [RouterFlags.stable, RouterFlags.fast, RouterFlags.valid,
-                                                 RouterFlags.running]
-
-    @staticmethod
-    def _parse_r_line(line):
-        """
-        Parse router info line
-        :param line: the line
-        :return: dict with router info
-        """
-        split_line = line.split(' ')
-
-        nickname = split_line[1]
-        fingerprint = split_line[2]
-        ip = split_line[6]
-        tor_port = int(split_line[7])
-        dir_port = int(split_line[8])
-
-        # The fingerprint is base64 encoded bytes.
-        fingerprint += '=' * (-len(fingerprint) % 4)
-        fingerprint = b64decode(fingerprint)
-
-        return {'nickname': nickname, 'ip': ip, 'dir_port': dir_port, 'tor_port': tor_port, 'fingerprint': fingerprint}
-
-    @staticmethod
-    def _parse_s_line(line):
-        flags = []
-        for token in line.split(' '):
-            if token == 's':
-                continue
-            flags.append(token.lower().replace('\n', '', 1))
-        return flags
-
-    @staticmethod
-    def _parse_dir_line(line):
-        #  dannenberg 0232AF901C31A04EE9848595AF9BB7620D4C5B2E dannenberg.torauth.de 193.23.244.244 80 443
-        split_line = line.split(' ')[1:]
-        fields = ['nickname', 'fingerprint', 'hostname', 'address', 'dir_port', 'or_port']
-        return dict(zip(fields, split_line))
-
-    @staticmethod
-    def _to_flags(flags_list):
-        flags = RouterFlags.unknown
-        for f in RouterFlags:
-            if f.name in flags_list:
-                flags |= f
-        return flags
-
-    @staticmethod
-    def _parse_date(date_str):
-        # 2019-01-01 00:00:00
-        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-
-    def parse(self, consensus_string, link_consensus=None):
-        results_list = []
-        voters_list = []
-        valid_after = fresh_until = valid_until = None
-
-        router_info = None
-        voter_info = None
-        for line in consensus_string.splitlines():
-            # Consensus info
-            if line.startswith('valid-after '):
-                valid_after = self._parse_date(line[12:])
-            elif line.startswith('fresh-until '):
-                fresh_until = self._parse_date(line[12:])
-            elif line.startswith('valid-until '):
-                valid_until = self._parse_date(line[12:])
-            # Voters lines
-            elif line.startswith('dir-source '):
-                voter_info = self._parse_dir_line(line)
-            elif line.startswith('contact '):
-                voter_info['contact'] = line[8:]
-            elif line.startswith('vote-digest '):
-                voter_info['vote_digest'] = line[12:]
-                voters_list.append(voter_info)
-            # Router lines
-            elif line.startswith('r '):
-                router_info = self._parse_r_line(line)
-            elif line.startswith('s '):
-                assert router_info
-                flags_list = self._parse_s_line(line)
-                router_info['flags'] = self._to_flags(flags_list)
-            elif line.startswith('v '):
-                assert router_info
-                assert router_info['flags']
-
-                if router_info['flags'].all_present(self.validate_flags):
-                    router_info['version'] = line[2:]
-
-                    router = OnionRouter(**router_info, consensus=link_consensus)
-                    results_list.append(router)
-                router_info = None
-            # Signatures lines
-            elif line.startswith('directory-signature '):
-                pass
-            # TODO: calculate SHA1/SHA256
-
-        return results_list, voters_list, valid_after, fresh_until, valid_until
-

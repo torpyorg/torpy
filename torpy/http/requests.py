@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 
-import requests
-
 from contextlib import contextmanager
+
+import requests
 
 from torpy.client import TorClient
 from torpy.http.adapter import TorHttpAdapter
@@ -28,12 +28,13 @@ class TorRequests:
         self._auth_data = dict(auth_data) if auth_data else auth_data
 
     def __enter__(self):
+        """Create TorClient and connect to guard node."""
         self._tor = TorClient(auth_data=self._auth_data)
         self._guard = self._tor.get_guard()
-        self._guard.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close guard connection."""
         self._guard.close()
 
     def send(self, method, url, data=None, **kwargs):

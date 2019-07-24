@@ -13,17 +13,14 @@
 # limitations under the License.
 #
 
-import traceback
 import logging
 import threading
 
-from requests.adapters import HTTPAdapter, DEFAULT_POOLBLOCK
-from requests.packages.urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
+from requests.adapters import DEFAULT_POOLBLOCK, HTTPAdapter
 from requests.packages.urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
-from requests.packages.urllib3.exceptions import ConnectTimeoutError, NewConnectionError
+from requests.packages.urllib3.exceptions import NewConnectionError, ConnectTimeoutError
+from requests.packages.urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
 
-#from urllib3.poolmanager import HTTPSConnectionPool
-#from urllib3.connection import  HTTPConnection, HTTPSConnection
 logger = logging.getLogger(__name__)
 
 
@@ -123,9 +120,11 @@ class MyHTTPConnection(HTTPConnection):
             self.sock = self._tor_stream.create_socket()
             if self._tunnel_host:
                 self._tunnel()
-        except TimeoutError as e:
+        except TimeoutError:
             logger.error("TimeoutError")
-            raise ConnectTimeoutError(self, "Connection to %s timed out. (connect timeout=%s)" % (self.host, self.timeout))
+            raise ConnectTimeoutError(
+                self, "Connection to %s timed out. (connect timeout=%s)" %
+                (self.host, self.timeout))
         except Exception as e:
             logger.error("NewConnectionError")
             raise NewConnectionError(self, "Failed to establish a new connection: %s" % e)
@@ -153,9 +152,11 @@ class MyHTTPSConnection(VerifiedHTTPSConnection):
             self._tor_stream = self._circuit.create_stream_((self.host, self.port))
             logger.debug('[MyHTTPSConnection] tor_stream create_socket')
             return self._tor_stream.create_socket()
-        except TimeoutError as e:
+        except TimeoutError:
             logger.error("TimeoutError")
-            raise ConnectTimeoutError(self, "Connection to %s timed out. (connect timeout=%s)" % (self.host, self.timeout))
+            raise ConnectTimeoutError(
+                self, "Connection to %s timed out. (connect timeout=%s)" %
+                (self.host, self.timeout))
         except Exception as e:
             logger.error("NewConnectionError")
             raise NewConnectionError(self, "Failed to establish a new connection: %s" % e)

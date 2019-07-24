@@ -14,16 +14,13 @@
 #
 
 import logging
-
-from base64 import b16encode
 from enum import Flag, auto, unique
+from base64 import b16encode
 
-import requests
 from requests.exceptions import ConnectionError
 
-from torpy.utils import to_hex, cached_property, fp_to_str
+from torpy.utils import fp_to_str, cached_property, http_get
 from torpy.parsers import RouterDescriptorParser
-
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +103,8 @@ class OnionRouter:
     @property
     def descriptor_url_prefix(self):
         """
-        The URL to the onion router's descriptor (where keys are stored).
+        Get the URL to the onion router's descriptor (where keys are stored).
+
         :return: URL
         """
         return 'http://{}:{}/tor/server/fp'.format(self.ip, self.dir_port)
@@ -116,7 +114,8 @@ class OnionRouter:
 
     def get_descriptor_for(self, fingerprint):
         """
-        Get another router descriptor through this one
+        Get another router descriptor through this one.
+
         :param fingerprint:
         :return: Descriptor object
         """
@@ -124,15 +123,16 @@ class OnionRouter:
 
         url = self.descriptor_url(fingerprint)
         try:
-            response = requests.get(url, timeout=3)
+            response = http_get(url)
         except (ConnectionError, ) as e:
             logger.debug(e)
             raise Exception("Can't fetch descriptor from %s" % url)
 
-        descriptor_info = RouterDescriptorParser.parse(response.text)
+        descriptor_info = RouterDescriptorParser.parse(response)
         return Descriptor(**descriptor_info)
 
     def __str__(self):
+        """Get router string representation."""
         return '{}:{} ({}; {})'.format(self.ip, self.tor_port, self.nickname, self.version)
 
 

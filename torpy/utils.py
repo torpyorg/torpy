@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 
+import os
 import sys
 import logging
 import threading
 import contextlib
-
 from base64 import b64encode
 
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,14 @@ def fp_to_str(fp):
     return b64encode(fp).decode()
 
 
-class cached_property:
+class cached_property:  # noqa: N801
     def __init__(self, func):
         self.__doc__ = func.__doc__
         self.func = func
         self.lock = threading.RLock()
 
     def __get__(self, obj, cls):
+        """Check whether return value already exists and return it."""
         if obj is None:
             return self
 
@@ -120,8 +122,6 @@ def recv_exact(sock, n):
             break
         n -= len(chunk)
         data += chunk
-        #if n:
-        #    logger.debug("recv_exact: not all data was recv'd, trying again...")
     return data
 
 
@@ -140,3 +140,19 @@ class AuthType:
     No = 0
     Basic = 1
     Stealth = 2
+
+
+def user_data_dir(app_name):
+    """Return full path to the user-specific data dir for this application."""
+    if sys.platform == "win32":
+        app_name = os.path.join(app_name, app_name)  # app_author + app_name
+        path = os.path.expandvars(r'%APPDATA%')
+    elif sys.platform == 'darwin':
+        path = os.path.expanduser('~/Library/Application Support/')
+    else:
+        path = os.getenv('XDG_DATA_HOME', os.path.expanduser("~/.local/share"))
+    return os.path.join(path, app_name)
+
+
+def http_get(url, timeout=10):
+    return requests.get(url, headers={'User-Agent': None}, timeout=timeout).text

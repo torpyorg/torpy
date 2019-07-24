@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 
+# flake8: noqa: E501
+
 import pytest
 
-from torpy.parsers import *
+from torpy.parsers import HSDescriptorParser, IntroPointParser, RouterDescriptorParser
 
 
 @pytest.fixture

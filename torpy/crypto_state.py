@@ -16,9 +16,10 @@
 import struct
 import logging
 
-from torpy.crypto_common import *
-from torpy.utils import to_hex
 from torpy.cells import RelayedTorCell
+from torpy.utils import to_hex
+from torpy.crypto_common import sha1_stream, sha1_stream_clone, sha1_stream_finalize, sha1_stream_update,\
+    aes_ctr_decryptor, aes_ctr_encryptor, aes_update
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 class CryptoState:
     def __init__(self, data):
         """
+        Parse handshake data and create forward/backward digests.
+
         When used in the ntor handshake, the first HASH_LEN bytes form the
         forward digest Df; the next HASH_LEN form the backward digest Db; the
         next KEY_LEN form Kf, the next KEY_LEN form Kb, and the final
@@ -55,7 +58,11 @@ class CryptoState:
         sha1_stream_update(digest_clone, payload)
         new_digest = sha1_stream_finalize(digest_clone)[:4]
         if new_digest != digest:
-            logger.error('received cell digest not equal ({!r} != {!r}); payload = {!r}'.format(to_hex(new_digest), to_hex(digest), to_hex(payload)))
+            logger.error(
+                'received cell digest not equal ({!r} != {!r}); payload = {!r}'.format(
+                    to_hex(new_digest),
+                    to_hex(digest),
+                    to_hex(payload)))
             return False
 
         sha1_stream_update(self._backward_digest, payload)

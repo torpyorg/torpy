@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import struct
 import socket
+import struct
 import logging
-
 from enum import IntEnum, unique
 
-from torpy.crypto_common import sha1
+from torpy.utils import AuthType, to_hex, fp_to_str
 from torpy.crypto import hybrid_encrypt
-from torpy.utils import to_hex, fp_to_str, AuthType
+from torpy.crypto_common import sha1
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,8 @@ class TorCell:
     @classmethod
     def is_var_len(cls):
         """
+        If current cell variable-length.
+
         On a version 2 connection, variable-length cells are indicated by a
         command byte equal to 7 ("VERSIONS").
         On a version 3 or higher connection, variable-length cells are indicated by a command
@@ -74,6 +75,7 @@ class TorCell:
         return ''
 
     def __repr__(self):
+        """Represent TorCell string."""
         args = self._args_str()
         circ_str = 'circuit_id = {:x}'.format(self.circuit_id) if self.circuit_id else ''
         return '{}({}{})'.format(type(self).__name__, args, ', ' + circ_str if args and circ_str else circ_str)
@@ -97,9 +99,8 @@ class TorCellEmpty(TorCell):
 
 
 class CellVersions(TorCell):
-    """
-    The payload in a VERSIONS cell is a series of big-endian two-byte integers.
-    """
+    """The payload in a VERSIONS cell is a series of big-endian two-byte integers."""
+
     NUM = 7
 
     def __init__(self, versions, circuit_id=0):
@@ -120,6 +121,8 @@ class CellVersions(TorCell):
 
 class CellNetInfo(TorCell):
     """
+    CellNetInfo representation.
+
     The cell's payload is:
 
     - Timestamp              [4 bytes]
@@ -140,6 +143,7 @@ class CellNetInfo(TorCell):
     - 0xF0 -- Error, transient
     - 0xF1 -- Error, nontransient
     """
+
     NUM = 8
 
     def __init__(self, timestamp, other_or, this_or, circuit_id=0):
@@ -165,9 +169,12 @@ class CellNetInfo(TorCell):
 
 class CellDestroy(TorCell):
     """
+    CellDestroy representation.
+
     The payload of a RELAY_TRUNCATED or DESTROY cell contains a single octet,
     describing why the circuit is being closed or truncated.
     """
+
     NUM = 4
 
     def __init__(self, reason, circuit_id):
@@ -199,7 +206,7 @@ class RelayedTorCell(TorCell):
     def _set_inits(self, inner_cell, padding, stream_id, digest, **kwargs):
         self._inner_cell = inner_cell
         self._padding = padding or b''
-        #if self._padding:
+        # if self._padding:
         #    logger.warn('Has some padding!!!')
         self._stream_id = stream_id
         self._digest = digest
@@ -231,7 +238,7 @@ class RelayedTorCell(TorCell):
         assert self._digest, 'must be prepared already'
 
         payload = self._serialize_payload()
-        #verbose: logger.debug('relay full cell: %s', to_hex(payload))
+        # verbose: logger.debug('relay full cell: %s', to_hex(payload))
         self._encrypted = encrypting_func(payload)
 
     def _serialize_payload(self):
@@ -275,7 +282,7 @@ class RelayedTorCell(TorCell):
     @staticmethod
     def set_header_digest(payload, new_digest):
         assert len(new_digest) == 4, 'digest must be 4 bytes'
-        return payload[:5] + new_digest + payload[5+4:]
+        return payload[:5] + new_digest + payload[5 + 4:]
 
     def set_decrypted(self, cell_num, stream_id, digest, relay_payload_len, relay_payload_raw, **kwargs):
         relay_payload = relay_payload_raw[:relay_payload_len]
@@ -287,7 +294,7 @@ class RelayedTorCell(TorCell):
             cell_type = TorCommands.get_relay_by_num(cell_num)
             logger.debug('Deserialize %s relay cell', cell_type.__name__)
             inner_cell = TorCell.deserialize(cell_type, 0, relay_payload, 0)
-        except:
+        except BaseException:
             logger.error("Can't deserialize %i cell: %r", cell_num, to_hex(relay_payload))
             raise
 
@@ -327,12 +334,11 @@ class CellRelay(RelayedTorCell):
     def _deserialize_payload(payload, proto_version):
         return {'inner_cell': None, 'encrypted': payload}
 
-    #def _args_str(self):
-    #    return 'inner_cell = %r, stream_id=%i, circuit_id=%i, encrypted=%r' % (self.inner_cell, self.stream_id, self.circuit_id, self.encrypted)
-
 
 class CellRelayExtend2(TorCell):
     """
+    CellRelayExtend2 representation.
+
     To extend an existing circuit, the client sends an EXTEND2
     relay cell to the last node in the circuit.
 
@@ -346,6 +352,7 @@ class CellRelayExtend2(TorCell):
         HLEN       (Client Handshake Data Len)     [2 bytes]
         HDATA      (Client Handshake Data)         [HLEN bytes]
     """
+
     NUM = 14
 
     def __init__(self, ip, port, fingerprint, skin):
@@ -372,7 +379,7 @@ class CellRelayExtend2(TorCell):
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
-        raise NotImplemented('CellRelayExtend2 deserialization not implemented')
+        raise NotImplementedError('CellRelayExtend2 deserialization not implemented')
 
     def _args_str(self):
         return 'ip = {}, port = {}, fingerprint = {}'.format(self.ip, self.port, fp_to_str(self.fingerprint))
@@ -395,10 +402,13 @@ class CellCreate2(TorCell):
 
 class CellCreated2(TorCell):
     """
+    CellCreated2 representation.
+
     A CREATED2 cell contains:
         DATA_LEN      (Server Handshake Data Len) [2 bytes]
         DATA          (Server Handshake Data)     [DATA_LEN bytes]
     """
+
     NUM = 11
 
     def __init__(self, handshake_data, circuit_id):
@@ -412,7 +422,6 @@ class CellCreated2(TorCell):
     def _deserialize_payload(payload, proto_version):
         length = struct.unpack('!H', payload[:2])[0]
         handshake_data = payload[2:length + 2]
-        #logger.debug('handshake_data raw: %s', to_hex(handshake_data))
         return {'handshake_data': handshake_data}
 
     def _args_str(self):
@@ -421,6 +430,8 @@ class CellCreated2(TorCell):
 
 class CellRelayBegin(TorCell):
     """
+    CellRelayBegin representation.
+
     tor-spec.txt
     6.2.
 
@@ -429,6 +440,7 @@ class CellRelayBegin(TorCell):
 
     ADDRPORT is made of ADDRESS | ':' | PORT | [00]
     """
+
     NUM = 1
 
     def __init__(self, address, port):
@@ -443,16 +455,13 @@ class CellRelayBegin(TorCell):
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
-        raise NotImplemented('CellRelayBegin deserialization not implemented')
+        raise NotImplementedError('CellRelayBegin deserialization not implemented')
 
     def _args_str(self):
         return 'address = {!r}, port = {!r}, flags = {!r}'.format(self.address, self.port, self.flags)
 
 
 class CellRelayBeginDir(TorCellEmpty):
-    """
-    tor-spec.txt
-    """
     NUM = 13
 
 
@@ -476,6 +485,8 @@ class CellRelayData(TorCell):
 
 class CellRelayEnd(TorCell):
     """
+    CellRelayEnd representation.
+
     The payload of a RELAY_END cell begins with a single 'reason' byte to
     describe why the stream is closing.  For some reasons, it contains
     additional data (depending on the reason.)
@@ -484,6 +495,7 @@ class CellRelayEnd(TorCell):
     forms the optional data, along with a 4-byte TTL; no other reason
     currently has extra data.)
     """
+
     NUM = 3
 
     def __init__(self, reason, circuit_id):
@@ -505,16 +517,19 @@ class CellRelayEnd(TorCell):
 
 class CellRelayConnected(TorCell):
     """
-       Otherwise, the exit node replies with a RELAY_CONNECTED cell, whose
+    CellRelayConnected representation.
+
+    Otherwise, the exit node replies with a RELAY_CONNECTED cell, whose
     payload is in one of the following formats:
-       The IPv4 address to which the connection was made [4 octets]
-       A number of seconds (TTL) for which the address may be cached [4 octets]
+      The IPv4 address to which the connection was made [4 octets]
+      A number of seconds (TTL) for which the address may be cached [4 octets]
     or
-       Four zero-valued octets [4 octets]
-       An address type (6)     [1 octet]
-       The IPv6 address to which the connection was made [16 octets]
-       A number of seconds (TTL) for which the address may be cached [4 octets]
+      Four zero-valued octets [4 octets]
+      An address type (6)     [1 octet]
+      The IPv6 address to which the connection was made [16 octets]
+      A number of seconds (TTL) for which the address may be cached [4 octets]
     """
+
     NUM = 4
 
     def __init__(self, address, ttl, circuit_id):
@@ -532,7 +547,7 @@ class CellRelayConnected(TorCell):
     @staticmethod
     def _deserialize_payload(payload, proto_version):
         if payload:
-            #logger.debug(to_hex(payload))
+            # logger.debug(to_hex(payload))
             ip_int, ttl = struct.unpack('!II', payload)
             address = socket.inet_ntoa(struct.pack('!I', ip_int))
             return {'address': address, 'ttl': ttl}
@@ -556,9 +571,8 @@ class CellRelayTruncated(CellDestroy):
 
 
 class CellRelayExtended2(CellCreated2):
-    """
-    The payload of an EXTENDED2 cell is the same as the payload of a CREATED2 cell
-    """
+    """The payload of an EXTENDED2 cell is the same as the payload of a CREATED2 cell."""
+
     NUM = 15
 
 
@@ -574,7 +588,7 @@ class CellRelayEstablishRendezvous(TorCell):
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
-        raise NotImplemented('CellRelayEstablishRendezvous deserialization not implemented')
+        raise NotImplementedError('CellRelayEstablishRendezvous deserialization not implemented')
 
 
 class CellRelayIntroduce1(TorCell):
@@ -637,7 +651,7 @@ class CellRelayIntroduce1(TorCell):
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
-        raise NotImplemented('CellRelayEstablishRendezvous deserialization not implemented')
+        raise NotImplementedError('CellRelayEstablishRendezvous deserialization not implemented')
 
 
 class CellRelayRendezvous2(TorCell):
@@ -669,12 +683,12 @@ class CellRelayIntroduceAck(TorCellEmpty):
 class CellCerts(TorCell):
     NUM = 129
 
-    def __init__(self, certs, circuit_id = 0):
+    def __init__(self, certs, circuit_id=0):
         super().__init__(circuit_id)
         self.certs = certs
 
     def _serialize_payload(self):
-        raise NotImplemented('CellCerts serialization not implemented')
+        raise NotImplementedError('CellCerts serialization not implemented')
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
@@ -685,12 +699,12 @@ class CellCerts(TorCell):
 class CellAuthChallenge(TorCell):
     NUM = 130
 
-    def __init__(self, auth, circuit_id = 0):
+    def __init__(self, auth, circuit_id=0):
         super().__init__(circuit_id)
         self.auth = auth
 
     def _serialize_payload(self):
-        raise NotImplemented('CellAuthChallenge serialization not implemented')
+        raise NotImplementedError('CellAuthChallenge serialization not implemented')
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
@@ -701,18 +715,19 @@ class CellAuthChallenge(TorCell):
 class TorCommands:
     """
     Enum class which contains all available command types.
+
     tor-spec.txt 3. "Cell Packet format"
     """
 
     _map = {
         # Fixed-length command values.
         CellPadding.NUM: CellPadding,               # 0
-        #CellCreate.NUM: CellCreate                 # 1
-        #CellCreated.NUM: CellCreated               # 2
+        # CellCreate.NUM: CellCreate                 # 1
+        # CellCreated.NUM: CellCreated               # 2
         CellRelay.NUM: CellRelay,                   # 3
         CellDestroy.NUM: CellDestroy,               # 4
-        #CellCreateFast.NUM: CellCreateFast         # 5
-        #CellCreatedFast.NUM: CellCreatedFast       # 6
+        # CellCreateFast.NUM: CellCreateFast         # 5
+        # CellCreatedFast.NUM: CellCreatedFast       # 6
         CellNetInfo.NUM: CellNetInfo,               # 8
         CellRelayEarly.NUM: CellRelayEarly,         # 9
         CellCreate2.NUM: CellCreate2,               # 10
@@ -720,10 +735,10 @@ class TorCommands:
 
         # Variable-length command values.
         CellVersions.NUM: CellVersions,             # 7
-        #CellVPadding.NUM: CellVPadding,            # 128
+        # CellVPadding.NUM: CellVPadding,            # 128
         CellCerts.NUM: CellCerts,                   # 129
         CellAuthChallenge.NUM: CellAuthChallenge,   # 130
-        #CellAuthenticate.NUM: CellAuthenticate,    # 131
+        # CellAuthenticate.NUM: CellAuthenticate,    # 131
     }
 
     @classmethod
@@ -740,34 +755,27 @@ class TorCommands:
     # ("Streams") across circuits. End-to-end commands can be initiated
     # by either edge; streams are initiated by the OP.
     #
-    #RELAY_SENDME = 5
-    #RELAY_EXTEND = 6
-    #RELAY_EXTENDED = 7
-    #RELAY_TRUNCATE = 8
-    #RELAY_TRUNCATED = 9
-    #RELAY_DROP = 10
-    #RELAY_RESOLVE = 11
-    #RELAY_RESOLVED = 12
-    #RELAY_BEGIN_DIR = 13
-    #RELAY_EXTEND2 = 14
     _map2 = {
         CellRelayBegin.NUM: CellRelayBegin,            # 1
         CellRelayData.NUM: CellRelayData,              # 2
         CellRelayEnd.NUM: CellRelayEnd,                # 3
         CellRelayConnected.NUM: CellRelayConnected,    # 4
         CellRelaySendMe.NUM: CellRelaySendMe,          # 5
+        # CellRelayExtend2.NUM: CellRelayExtend2,        # 6
+        # CellRelayExtended2.NUM: CellRelayExtended2,    # 7
+        # CellRelayTruncate.NUM: CellRelayTruncate,      # 8
+        CellRelayTruncated.NUM: CellRelayTruncated,    # 9
+        # CellRelayDrop.NUM: CellRelayDrop,             # 10
+        # CellRelayResolve.NUM: CellRelayResolve,       # 11
+        # CellRelayResolved.NUM: CellRelayResolved,     # 12
+        CellRelayBeginDir.NUM: CellRelayBeginDir,      # 13
+        # CellRelayExtend2.NUM: CellRelayExtend2,       # 14
+        CellRelayExtended2.NUM: CellRelayExtended2,    # 15
         # ...
-        #CellRelayTruncate.NUM: CellRelayTruncate,      # 8
-        CellRelayTruncated.NUM: CellRelayTruncated,      # 9
-        #...
-        CellRelayBeginDir.NUM: CellRelayBeginDir,       # 13
-        #CellRelayExtend.NUM: CellRelayExtend,          # 14
-        CellRelayExtended2.NUM: CellRelayExtended2,     # 15
-        #...
         CellRelayEstablishRendezvous.NUM: CellRelayEstablishRendezvous,         # 33
         CellRelayIntroduce1.NUM: CellRelayIntroduce1,                           # 34
         CellRelayRendezvous2.NUM: CellRelayRendezvous2,
-        #...
+        # ...
         CellRelayRendezvousEstablished.NUM: CellRelayRendezvousEstablished,     # 39
         CellRelayIntroduceAck.NUM: CellRelayIntroduceAck,  # 40
     }

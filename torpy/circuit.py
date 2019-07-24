@@ -13,28 +13,31 @@
 # limitations under the License.
 #
 
+import socket
+import logging
 import threading
-import functools
-
 from contextlib import contextmanager
 
-from torpy.keyagreement import NtorKeyAgreement, TapKeyAgreement
-from torpy.hiddenservice import HiddenServiceConnector, DescriptorNotAvailable
-from torpy.cells import *
-from torpy.stream import StreamsManager, TorWindow
+from torpy.cells import CellRelayTruncated, CellRelayEnd, CellRelayData, CellRelaySendMe, CellRelayConnected, \
+    CellDestroy, CircuitReason, CellCreate2, CellCreated2, RelayedTorCell, CellRelay, CellRelayExtend2, \
+    CellRelayExtended2, CellRelayEarly, CellRelayEstablishRendezvous, CellRelayRendezvousEstablished, \
+    CellRelayIntroduce1, CellRelayIntroduceAck
+from torpy.utils import ignore
+from torpy.stream import TorWindow, StreamsManager
 from torpy.cell_socket import NoDataException
 from torpy.crypto_state import CryptoState
-from torpy.utils import ignore, retry, log_retry
+from torpy.keyagreement import TapKeyAgreement, NtorKeyAgreement
+from torpy.hiddenservice import DescriptorNotAvailable, HiddenServiceConnector
 
 logger = logging.getLogger(__name__)
 
 
 class CellTimeoutError(Exception):
-    """Wait cell timeout error"""
+    """Wait cell timeout error."""
 
 
 class CircuitExtendError(Exception):
-    """Circuit extend error"""
+    """Circuit extend error."""
 
 
 class TorHandshakeType:
@@ -158,9 +161,9 @@ class TorReceiver:
 
                 try:
                     self._handler_mgr.handle(cell)
-                except:
+                except BaseException:
                     logger.exception("Some handle errors")
-        except:
+        except BaseException:
             logger.exception('Some errors in recv loop')
 
 
@@ -174,7 +177,7 @@ class CellHandlerManager:
     def __init__(self):
         self._handlers = {}
 
-    #def stop(self):
+    # def stop(self):
     # # TODO: set_error for all waiters
     #    for handler in self._handlers:
     #
@@ -305,6 +308,8 @@ class TorCircuit:
 
     def _initialize(self, router):
         """
+        Send CellCreate2 to create Circuit.
+
         Users set up circuits incrementally, one hop at a time. To create a
         new circuit, OPs send a CREATE/CREATE2 cell to the first node, with
         the first half of an authenticated handshake; that node responds with
@@ -452,6 +457,8 @@ class TorCircuit:
     @check_connected
     def extend(self, next_onion_router, handshake_type=TorHandshakeType.NTOR):
         """
+        Send CellExtend to extend this Circuit.
+
         To extend the circuit by a single onion router R_M, the OP performs these steps:
             1. Create an onion skin, encrypted to R_M's public onion key.
             2. Send the onion skin in a relay EXTEND2 cell along
@@ -459,7 +466,6 @@ class TorCircuit:
             3. When a relay EXTENDED/EXTENDED2 cell is received, verify KH,
                and calculate the shared keys.  The circuit is now extended.
         """
-
         logger.info('Extending the circuit #%x with %s...', self.id, next_onion_router)
 
         logger.debug('Sending Extend2...')
@@ -572,9 +578,46 @@ class TorCircuit:
                             self._circuit_nodes.append(extend_node)
                             self._associated_hs = hidden_service
                             return
-                        except:
+                        except BaseException:
                             logger.exception('Some errors')
                             continue
 
             raise Exception("Can't extend to hidden service")
 
+
+class CircuitsManager:
+    LOCK = threading.Lock()
+    GLOBAL_CIRCUIT_ID = 0
+
+    def __init__(self, router, sender, consensus, auth_data):
+        self._router = router
+        self._sender = sender
+        self._consensus = consensus
+        self._auth_data = auth_data
+
+        self._circuits_map = {}
+
+    def circuits(self):
+        for circuit in self._circuits_map.values():
+            yield circuit
+
+    @staticmethod
+    def _get_next_circuit_id(msb=True):
+        with CircuitsManager.LOCK:
+            CircuitsManager.GLOBAL_CIRCUIT_ID += 1
+            circuit_id = CircuitsManager.GLOBAL_CIRCUIT_ID
+        if msb:
+            circuit_id |= 0x80000000
+        return circuit_id
+
+    def create_new(self):
+        circuit_id = self._get_next_circuit_id()
+        circuit = TorCircuit(circuit_id, self._router, self._sender, self._consensus, self._auth_data)
+        self._circuits_map[circuit.id] = circuit
+        return circuit
+
+    def get_by_id(self, circuit_id):
+        return self._circuits_map.get(circuit_id, None)
+
+    def remove(self, circuit_id):
+        return self._circuits_map.pop(circuit_id, None)

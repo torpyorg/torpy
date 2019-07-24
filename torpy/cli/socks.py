@@ -13,21 +13,19 @@
 # limitations under the License.
 #
 
-"""Socks5 repeater proxy"""
+"""Socks5 repeater proxy."""
 import os
 import array
-import struct
 import select
 import socket
+import struct
 import logging
 import threading
-
-from contextlib import contextmanager
 from argparse import ArgumentParser
+from contextlib import contextmanager
 
 from torpy.utils import recv_exact, register_logger
 from torpy.client import TorClient
-
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +51,9 @@ class SocksProxy:
                 if csock in r:
                     buf = csock.recv(4096)
                     if len(buf) == 0:
-                            break
+                        break
                     ssock.send(buf)
-        except:
+        except BaseException:
             logger.exception('[socks] Some error')
         finally:
             logger.info('[socks] Close ssock')
@@ -72,6 +70,7 @@ class SocksServer(object):
         self.listen_socket = None
 
     def __enter__(self):
+        """Start listen incoming connections."""
         lsock = self.listen_socket = socket.socket(2, 1, 6)
         lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         lsock.bind((self.ip, self.port))
@@ -80,16 +79,23 @@ class SocksServer(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close listen incoming connections."""
+        self.listen_socket.close()
         if exc_type:
             from traceback import format_exception
-            logger.error('[socks] Exception in server:\n%s', '\n'.join(format_exception(exc_type, exc_val, exc_tb)).rstrip('\r\n'))
-        return True
+            logger.error(
+                '[socks] Exception in server:\n%s',
+                '\n'.join(
+                    format_exception(
+                        exc_type,
+                        exc_val,
+                        exc_tb)).rstrip('\r\n'))
 
     def start(self):
         while True:
             try:
                 csock, caddr = self.listen_socket.accept()
-            except:
+            except BaseException:
                 logger.info('[socks] Closing by user request')
                 raise
             logger.info('[socks] Client connected %s', caddr)
@@ -101,7 +107,7 @@ class Socks5(threading.Thread):
         if client_addr[0] == '127.0.0.1':
             thread_name = 'Socks-%s' % client_addr[1]
         else:
-            thread_name = 'Socks-%s:%s' %(client_addr[0], client_addr[1])
+            thread_name = 'Socks-%s:%s' % (client_addr[0], client_addr[1])
         super().__init__(name=thread_name)
         self.circuit = circuit
         self.client_sock = client_sock
@@ -112,7 +118,7 @@ class Socks5(threading.Thread):
             self.client_sock.send(b'\x05' + err)
             self.client_sock.close()
             self.client_sock = None
-        except:
+        except BaseException:
             pass
 
     @contextmanager
@@ -129,7 +135,7 @@ class Socks5(threading.Thread):
             if ver != b'\x05':
                 return self.error(b'\xff')
             nmeth, = array.array('B', csock.recv(1))
-            methods = recv_exact(csock, nmeth)
+            _ = recv_exact(csock, nmeth)  # read methods
             csock.send(b'\x05\0')
             hbuf = recv_exact(csock, 4)
             if not hbuf:

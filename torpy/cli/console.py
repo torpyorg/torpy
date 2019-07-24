@@ -15,13 +15,12 @@
 
 import logging
 import textwrap
-
 from argparse import ArgumentParser
 
 from requests import Request
 
-from torpy.http.requests import tor_requests_session
 from torpy.utils import register_logger
+from torpy.http.requests import tor_requests_session
 
 logger = logging.getLogger(__name__)
 

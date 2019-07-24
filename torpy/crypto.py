@@ -16,7 +16,7 @@
 import os
 import logging
 
-from torpy.crypto_common import *
+from torpy.crypto_common import sha1, aes_ctr_encryptor, aes_update, rsa_load_der, rsa_encrypt
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,10 @@ PK_DATA_LEN_WITH_KEY = PK_DATA_LEN - KEY_LEN
 
 def hybrid_encrypt(data, rsa_key_der):
     """
-        Encrypt the entire contents of the byte array "data" with the given "TorPublicKey"
-        according to the "hybrid encryption" scheme described in the main Tor specification(tor-spec.txt).
+    Hybrid encryption scheme.
+
+    Encrypt the entire contents of the byte array "data" with the given "TorPublicKey" according to
+    the "hybrid encryption" scheme described in the main Tor specification (tor-spec.txt).
     """
     rsa_key = rsa_load_der(rsa_key_der)
 

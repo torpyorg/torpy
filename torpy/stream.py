@@ -13,17 +13,17 @@
 # limitations under the License.
 #
 
-import os
 import time
+import logging
+import socket
 import threading
+from selectors import EVENT_READ, DefaultSelector
 from contextlib import contextmanager
 
-from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
-
-from torpy.cells import *
+from torpy.cells import CellRelayConnected, CellRelayData, CellRelaySendMe, CellRelayEnd, CellRelayBeginDir,\
+    CellRelayBegin, RelayedTorCell, StreamReason
+from torpy.utils import chunks, AuthType
 from torpy.hiddenservice import HiddenService
-from torpy.utils import chunks
-
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +112,7 @@ class StreamState:
 
 
 class TorStream:
-    """
-    This tor stream object implements socket-like interface
-    """
+    """This tor stream object implements socket-like interface."""
 
     def __init__(self, id, circuit, auth_data):
         logger.info('Creating stream #%i attached to #%x circuit...', id, circuit.id)
@@ -328,13 +326,13 @@ class StreamsManager:
         self._circuit = circuit
         self._auth_data = auth_data
         self._streams_lock = threading.Lock()
-    
+
     @staticmethod
     def get_next_stream_id():
         with StreamsManager.LOCK:
             StreamsManager.GLOBAL_STREAM_ID += 1
             return StreamsManager.GLOBAL_STREAM_ID
-        
+
     def create_new(self):
         stream = TorStream(self.get_next_stream_id(), self._circuit, self._auth_data)
         self._stream_map[stream.id] = stream

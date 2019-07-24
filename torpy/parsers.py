@@ -15,9 +15,7 @@
 
 import re
 import logging
-
 from base64 import b64decode
-
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ class HSDescriptorParser:
 introduction-points
 -----BEGIN MESSAGE-----
 (.+?)
------END MESSAGE-----""", flags=re.DOTALL|re.IGNORECASE)
+-----END MESSAGE-----""", flags=re.DOTALL | re.IGNORECASE)
 
     @staticmethod
     def parse(data):
@@ -50,7 +48,7 @@ signing-key
 (?P<signing_key>.+?)
 -----END RSA PUBLIC KEY-----
 .+?
-ntor-onion-key (?P<ntor_key>[^\n]+)""", flags=re.DOTALL|re.IGNORECASE)
+ntor-onion-key (?P<ntor_key>[^\n]+)""", flags=re.DOTALL | re.IGNORECASE)
 
     @staticmethod
     def parse(data):
@@ -74,7 +72,7 @@ onion-key
 service-key
 -----BEGIN RSA PUBLIC KEY-----
 (?P<service_key>.+?)
------END RSA PUBLIC KEY-----""", flags=re.DOTALL|re.IGNORECASE)
+-----END RSA PUBLIC KEY-----""", flags=re.DOTALL | re.IGNORECASE)
 
     @staticmethod
     def _decode(d):

@@ -14,15 +14,18 @@
 #
 
 import os
+import logging
 import time
+import struct
+from base64 import b32decode, b32encode, b64decode
 
-from base64 import b32decode, b32encode, b64decode, b64encode
-
-from torpy.cells import *
-from torpy.parsers import HSDescriptorParser, IntroPointParser
-from torpy.crypto_common import *
-from torpy.http.client import HttpClient
+from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
+from torpy.parsers import IntroPointParser, HSDescriptorParser
+from torpy.http.client import HttpClient
+from torpy.crypto_common import sha1, aes_ctr_decryptor, aes_update
+
+logger = logging.getLogger(__name__)
 
 
 # ref tor: connection_ap_handle_onion
@@ -65,15 +68,17 @@ class HiddenService:
 
     def _get_secret_id(self, replica):
         """
-            rend-spec.txt
-            1.3.
+        Get secret_id by replica number.
 
-            "time-period" changes periodically as a function of time and
-            "permanent-id". The current value for "time-period" can be calculated
-            using the following formula:
+        rend-spec.txt
+        1.3.
 
-              time-period = (current-time + permanent-id-byte * 86400 / 256)
-                              / 86400
+        "time-period" changes periodically as a function of time and
+        "permanent-id". The current value for "time-period" can be calculated
+        using the following formula:
+
+          time-period = (current-time + permanent-id-byte * 86400 / 256)
+                          / 86400
         """
         # tor ref: get_secret_id_part_bytes
         permanent_byte = self.permanent_id[0]
@@ -142,7 +147,7 @@ class EncPointsBuffer:
         assert len(self._crypted_data) > 2 + entries_len + self.CIPHER_IV_LEN, 'Size of crypted data too small'
         iv = self._crypted_data[2 + entries_len:2 + entries_len + self.CIPHER_IV_LEN]
         client_id = sha1(descriptor_cookie + iv)[:4]
-        session_key = self._get_session_key(self._crypted_data[2:2+entries_len], descriptor_cookie, client_id)
+        session_key = self._get_session_key(self._crypted_data[2:2 + entries_len], descriptor_cookie, client_id)
         d = aes_ctr_decryptor(session_key, iv)
         data = self._crypted_data[2 + entries_len + self.CIPHER_IV_LEN:]
         return d.update(data)
@@ -151,7 +156,7 @@ class EncPointsBuffer:
         pos = 0
         d = aes_ctr_decryptor(descriptor_cookie)
         while pos < len(data):
-            if data[pos:pos+self.REND_BASIC_AUTH_CLIENT_ID_LEN] == client_id:
+            if data[pos:pos + self.REND_BASIC_AUTH_CLIENT_ID_LEN] == client_id:
                 start_key_pos = pos + self.REND_BASIC_AUTH_CLIENT_ID_LEN
                 end_key_pos = start_key_pos + self.CIPHER_KEY_LEN
                 enc_session_key = data[start_key_pos:end_key_pos]
@@ -169,7 +174,7 @@ class EncPointsBuffer:
 
 
 class DescriptorNotAvailable(Exception):
-    """Descriptor not found"""
+    """Descriptor not found."""
 
 
 class ResponsibleDir:
@@ -243,6 +248,7 @@ class ResponsibleDir:
             yield IntroductionPoint(router, self._circuit)
 
     def __str__(self):
+        """Format ResponsibleDir string representation."""
         return 'ResponsibleDir {}'.format(self._router)
 
 

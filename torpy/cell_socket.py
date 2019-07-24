@@ -15,19 +15,19 @@
 
 import ssl
 import time
-import struct
 import socket
+import struct
 import logging
 import threading
 
-from torpy.cells import TorCell, TorCommands, CellCerts, CellVersions, CellAuthChallenge, CellNetInfo
-from torpy.utils import to_hex, recv_exact
+from torpy.cells import TorCell, CellCerts, CellNetInfo, TorCommands, CellVersions, CellAuthChallenge
+from torpy.utils import recv_exact
 
 logger = logging.getLogger(__name__)
 
 
 class TorSocketConnectError(Exception):
-    """Tor socket connection error"""
+    """Tor socket connection error."""
 
 
 class TorCellSocket:
@@ -184,6 +184,8 @@ class TorHandshake:
 
     def _send_versions(self):
         """
+        Send CellVersion.
+
         When the "in-protocol" handshake is used, implementations MUST NOT
         list any version before 3, and SHOULD list at least version 3.
 
@@ -202,13 +204,7 @@ class TorHandshake:
         assert isinstance(cell, CellVersions)
 
         logger.debug('Remote protocol versions: %s', cell.versions)
-        # if not any(link_ver in self._protocol_versions for link_ver in versions_cell.payload["versions"]):
-        #    raise Exception("Not supported our version")
-        # self._protocol_versions = versions_cell.payload["versions"]
-        #if 4 in cell.versions:
-        #    self._protocol_versions.append(4)
-
-        # choose maximum supported by both
+        # Choose maximum supported by both
         return min(max(self.tor_protocol.SUPPORTED_VERSION), max(cell.versions))
 
     def _retrieve_certs(self):
@@ -229,8 +225,6 @@ class TorHandshake:
         logger.debug('Our public IP address: %s', cell.this_or)
 
     def _send_net_info(self):
-        """
-        If version 2 or higher is negotiated, each party sends the other a NETINFO cell.
-        """
+        """If version 2 or higher is negotiated, each party sends the other a NETINFO cell."""
         logger.debug('Sending NET_INFO cell...')
         self.tor_socket.send_cell(CellNetInfo(int(time.time()), self.tor_socket.ip_address, '0'))

@@ -16,20 +16,14 @@
 import base64
 
 from cryptography.hazmat.backends import default_backend
-
-from cryptography.hazmat.primitives.ciphers import Cipher
-from cryptography.hazmat.primitives.ciphers.modes import CTR
-from cryptography.hazmat.primitives.ciphers.algorithms import AES
-
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives import serialization
-
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.hmac import HMAC
+from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
-from cryptography.hazmat.primitives.asymmetric import dh
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-
+from cryptography.hazmat.primitives.asymmetric import dh, padding
+from cryptography.hazmat.primitives.ciphers.modes import CTR
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey, X25519PrivateKey
+from cryptography.hazmat.primitives.ciphers.algorithms import AES
 
 bend = default_backend()
 
@@ -95,9 +89,11 @@ def curve25519_to_bytes(key):
     if isinstance(key, X25519PublicKey):
         return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     else:
-        return key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+        return key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
+                                 serialization.NoEncryption())
 
-_P = 179769313486231590770839156793787453197860296048756011706444423684197180216158519368947833795864925541502180565485980503646440548199239100050792877003355816639229553136239076508735759914822574862575007425302077447712589550957937778424442426617334727629299387668709205606050270810842907692932019128194467627007
+
+_P = 179769313486231590770839156793787453197860296048756011706444423684197180216158519368947833795864925541502180565485980503646440548199239100050792877003355816639229553136239076508735759914822574862575007425302077447712589550957937778424442426617334727629299387668709205606050270810842907692932019128194467627007  # noqa: E501
 _G = 2
 _DH_PARAMETERS_NUMBERS = dh.DHParameterNumbers(_P, _G)
 _DH_PARAMETERS = _DH_PARAMETERS_NUMBERS.parameters(default_backend())
@@ -115,7 +111,7 @@ def dh_public_to_bytes(key):
     return key.public_numbers().y.to_bytes(128, 'big')
 
 
-def df_public_from_bytes(public_bytes):
+def dh_public_from_bytes(public_bytes):
     y = int.from_bytes(public_bytes, byteorder='big')
     peer_public_numbers = dh.DHPublicNumbers(y, _DH_PARAMETERS.parameter_numbers())
     return peer_public_numbers.public_key(default_backend())

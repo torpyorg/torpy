@@ -13,9 +13,10 @@
 # limitations under the License.
 #
 
-from setuptools import setup, find_packages
-from os import path
 from io import open
+from os import path
+
+from setuptools import setup, find_packages
 
 here = path.abspath(path.dirname(__file__))
 
@@ -41,11 +42,9 @@ setup(
     packages=find_packages(exclude=['tests']),
     python_requires='>=3.6',
     install_requires=['cryptography', 'requests>=2.8.0,<2.12.0'],
-    entry_points={'console_scripts': [
-            'torpy_cli=torpy.cli.console:main',
-            'torpy_socks=torpy.cli.socks:main',
-        ],
-    },
+    entry_points={'console_scripts': ['torpy_cli=torpy.cli.console:main',
+                                      'torpy_socks=torpy.cli.socks:main']
+                  },
     project_urls={
         'Bug Reports': 'https://github.com/torpyorg/torpy/issues',
         'Source': 'https://github.com/torpyorg/torpy/',

@@ -13,11 +13,13 @@
 # limitations under the License.
 #
 
+# flake8: noqa: E501
+
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 
 from torpy.crypto import kdf_tor
-from torpy.crypto_common import dh_public_to_bytes, dh_shared
+from torpy.crypto_common import dh_shared, dh_public_to_bytes
 
 
 def to_bytes(hex_str):
@@ -30,15 +32,15 @@ def simple_urandom(length):
     return key
 
 
-def test_dh():
+def test_dh():  # noqa: E501
     bend = default_backend()
-    P = 179769313486231590770839156793787453197860296048756011706444423684197180216158519368947833795864925541502180565485980503646440548199239100050792877003355816639229553136239076508735759914822574862575007425302077447712589550957937778424442426617334727629299387668709205606050270810842907692932019128194467627007
-    G = 2
+    p = 179769313486231590770839156793787453197860296048756011706444423684197180216158519368947833795864925541502180565485980503646440548199239100050792877003355816639229553136239076508735759914822574862575007425302077447712589550957937778424442426617334727629299387668709205606050270810842907692932019128194467627007
+    g = 2
 
     mini_tor_p_bytes = b'\xff\xff\xff\xff\xff\xff\xff\xff\xc9\x0f\xda\xa2\x21\x68\xc2\x34\xc4\xc6\x62\x8b\x80\xdc\x1c\xd1\x29\x02\x4e\x08\x8a\x67\xcc\x74\x02\x0b\xbe\xa6\x3b\x13\x9b\x22\x51\x4a\x08\x79\x8e\x34\x04\xdd\xef\x95\x19\xb3\xcd\x3a\x43\x1b\x30\x2b\x0a\x6d\xf2\x5f\x14\x37\x4f\xe1\x35\x6d\x6d\x51\xc2\x45\xe4\x85\xb5\x76\x62\x5e\x7e\xc6\xf4\x4c\x42\xe9\xa6\x37\xed\x6b\x0b\xff\x5c\xb6\xf4\x06\xb7\xed\xee\x38\x6b\xfb\x5a\x89\x9f\xa5\xae\x9f\x24\x11\x7c\x4b\x1f\xe6\x49\x28\x66\x51\xec\xe6\x53\x81\xff\xff\xff\xff\xff\xff\xff\xff'
-    assert P.to_bytes(128, 'big') == mini_tor_p_bytes
+    assert p.to_bytes(128, 'big') == mini_tor_p_bytes
 
-    dh_parameters_numbers = dh.DHParameterNumbers(P, G)
+    dh_parameters_numbers = dh.DHParameterNumbers(p, g)
 
     dh_private_bytes = to_bytes(
         '81 2A 69 3A CD 75 6B 3F 3E 9A 8C 64 A4 ED 8C B5 2A 43 8B E7 6B 0D FB F5 CB 0D 70 E1 DB 2A 5F 57 4F 36 7D F1 B0 D1 E5 57 32 57 92 03 E4 0C 08 EF BA 7B 82 25 10 00 94 F0 3A E9 3F 2C AF 24 D6 FB A7 E0 DE 97 18 B5 DB E9 15 44 69 F8 CA 42 E8 87 18 16 BB F6 F8 8E D0 C9 B1 41 D4 02 02 E8 1A EC B3 E2 EB 06 04 86 EB 3D 6E A4 5E D7 4C ED EB B5 C6 7A A7 4F 13 99 D4 50 C8 BA 1E 9B 79 66 36 1D')
