@@ -92,7 +92,7 @@ def test_multi_threaded():
         links = [
             'https://httpbin.org/headers',
             'https://google.com',
-            'https://yahoo.com',
+            'https://ifconfig.me',
             'http://facebookcorewwwi.onion']
         if HS_BASIC_HOST:
             links.append('http://' + HS_BASIC_HOST)

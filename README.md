@@ -1,4 +1,4 @@
-Torpy ![Python Versions]
+Torpy ![Python Versions] [![Build Status](https://travis-ci.com/torpyorg/torpy.svg?branch=master)](https://travis-ci.com/torpyorg/torpy) [![Coverage Status](https://coveralls.io/repos/github/torpyorg/torpy/badge.svg?branch=master)](https://coveralls.io/github/torpyorg/torpy?branch=master)
 =====
 
 A pure-Python implementation of the Tor protocol.
