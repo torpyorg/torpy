@@ -298,7 +298,7 @@ class TorCircuit:
             elif self._state == TorCircuitState.Destroyed:
                 logger.debug('#%x circuit has been destroyed already', self.id)
             else:
-                raise Exception('#%x circuit is not yet connected')
+                raise Exception('#%x circuit is not yet connected'.format(self.id))
 
             self._state = TorCircuitState.Destroyed
 

@@ -15,7 +15,7 @@ class TorCacheStorage:
         assert issubclass(doc_cls, TorDocument)
         ident, content = self.load(doc_cls.DOCUMENT_NAME)
         if content:
-            logger.info("Loading cached %s from %s:%s", doc_cls.__name__, self.__class__.__name__, ident)
+            logger.info("Loading cached %s from %s: %s", doc_cls.__name__, self.__class__.__name__, ident)
             return doc_cls(content, **kwargs)
         else:
             return None

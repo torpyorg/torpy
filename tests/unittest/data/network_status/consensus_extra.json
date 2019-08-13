@@ -1,0 +1,176 @@
+{
+    "network_status_version": 3,
+    "vote_status": "consensus",
+    "consensus_method": 26,
+    "valid_after": {
+        "_isoformat": "2017-05-25T04:46:30"
+    },
+    "fresh_until": {
+        "_isoformat": "2017-05-25T04:46:40"
+    },
+    "valid_until": {
+        "_isoformat": "2017-05-25T04:46:50"
+    },
+    "voting_delay": "2 2",
+    "client_versions": "",
+    "server_versions": "",
+    "known_flags": "Authority Exit Fast Guard NewFlag1 HSDir NoEdConsensus Running Stable V2Dir Valid NewFlag2",
+    "recommended_client_protocols": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2",
+    "recommended_relay_protocols": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2",
+    "required_client_protocols": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2",
+    "required_relay_protocols": "Cons=1 Desc=1 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=3-4 LinkAuth=1 Microdesc=1 Relay=1-2",
+    "voters": [
+        {
+            "nickname": "test001a",
+            "fingerprint": "596CD48D61FDA4E868F4AA10FF559917BE3B1A35",
+            "hostname": "127.0.0.1",
+            "address": "127.0.0.1",
+            "dir_port": "7001",
+            "or_port": "5001",
+            "contact": "auth1@test.test",
+            "vote_digest": "2E7177224BBA39B505F7608FF376C07884CF926F AAAAAAA"
+        },
+        {
+            "nickname": "test000a",
+            "fingerprint": "BCB380A633592C218757BEE11E630511A485658A",
+            "hostname": "127.0.0.1",
+            "address": "127.0.0.1",
+            "dir_port": "7000",
+            "or_port": "5000",
+            "contact": "auth0@test.test",
+            "vote_digest": "5DD41617166FFB82882A117EEFDA0353A2794DC5"
+        }
+    ],
+    "routers": [
+        {
+            "nickname": "test002r",
+            "ip": "127.0.0.1",
+            "dir_port": 7002,
+            "tor_port": 5002,
+            "_fingerprint": "NIIl+DyFR5ay3WNk5lyxibM71pY",
+            "flags": [
+                {
+                    "_enum": "RouterFlags.Exit"
+                },
+                {
+                    "_enum": "RouterFlags.Fast"
+                },
+                {
+                    "_enum": "RouterFlags.Guard"
+                },
+                {
+                    "_enum": "RouterFlags.HSDir"
+                },
+                {
+                    "_enum": "RouterFlags.Running"
+                },
+                {
+                    "_enum": "RouterFlags.Stable"
+                },
+                {
+                    "_enum": "RouterFlags.V2Dir"
+                },
+                {
+                    "_enum": "RouterFlags.Valid"
+                }
+            ],
+            "version": "Tor 0.3.0.7",
+            "pr": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2",
+            "w": "Bandwidth=0 Unmeasured=1 Strange=2",
+            "p": "accept 1-65535"
+        },
+        {
+            "nickname": "test001a",
+            "ip": "127.0.0.1",
+            "dir_port": 7001,
+            "tor_port": 5001,
+            "_fingerprint": "qgzRpIKSW809FnL4tntRtWgOiwo",
+            "flags": [
+                {
+                    "_enum": "RouterFlags.Authority"
+                },
+                {
+                    "_enum": "RouterFlags.Exit"
+                },
+                {
+                    "_enum": "RouterFlags.Fast"
+                },
+                {
+                    "_enum": "RouterFlags.Guard"
+                },
+                {
+                    "_enum": "RouterFlags.HSDir"
+                },
+                {
+                    "_enum": "RouterFlags.Running"
+                },
+                {
+                    "_enum": "RouterFlags.V2Dir"
+                },
+                {
+                    "_enum": "RouterFlags.Valid"
+                }
+            ],
+            "version": "Tor 0.3.0.7",
+            "pr": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2",
+            "w": "Bandwidth=0 Unmeasured=1",
+            "p": "reject 1-65535"
+        },
+        {
+            "nickname": "test000a",
+            "ip": "127.0.0.1",
+            "dir_port": 7000,
+            "tor_port": 5000,
+            "_fingerprint": "3nJC+LvtNmx6kw23x1WE90pyIj4",
+            "flags": [
+                {
+                    "_enum": "RouterFlags.Authority"
+                },
+                {
+                    "_enum": "RouterFlags.Exit"
+                },
+                {
+                    "_enum": "RouterFlags.Fast"
+                },
+                {
+                    "_enum": "RouterFlags.Guard"
+                },
+                {
+                    "_enum": "RouterFlags.HSDir"
+                },
+                {
+                    "_enum": "RouterFlags.Running"
+                },
+                {
+                    "_enum": "RouterFlags.Stable"
+                },
+                {
+                    "_enum": "RouterFlags.V2Dir"
+                },
+                {
+                    "_enum": "RouterFlags.Valid"
+                }
+            ],
+            "version": "Tor 0.3.0.7",
+            "pr": "Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2",
+            "w": "Bandwidth=0 Unmeasured=1",
+            "p": "reject 1-65535"
+        }
+    ],
+    "signatures": [
+        {
+            "identity": "596CD48D61FDA4E868F4AA10FF559917BE3B1A35",
+            "signing_key_digest": "9FBF54D6A62364320308A615BF4CF6B27B254FAD",
+            "signature": {
+                "_bytes": "1e8d2b2e88df2c7b3d7123c5c5eeb39ee1ae154f01bd1afa8271f58142d38d464ed0d490be8e4deb6f0a15e02cabea5312589e41e57a51fc2760dd54dada2684162fdfefe9d71071612e684c30084f12d462f1f8a4b633d3d56eb70165145b54affb1ab5a8ee38c493d0cdf0082042e11bb9a39152925c094cf27fb564570c2107bff379654524a6735d9feeed15267d785acfc4f710bc1d390444a8ec2e3ff999d954eff076e39b498bb4e1e5b04c4a20da09125a6b33b4aa17a71d501abb46b0d2f6d96b3dc921833bfca4145cb191cbb207903ca0fc9e751ec3ac951f09463207ca3e5cb370383902171966b453a3722df9e9fa2c80b88cd6c56a09490d74"
+            }
+        },
+        {
+            "identity": "BCB380A633592C218757BEE11E630511A485658A",
+            "signing_key_digest": "9CA027E05B0CE1500D90DA13FFDA8EDDCD40A734",
+            "signature": {
+                "_bytes": "ba202df08af6ee96055f97cd2a25590e86ba10b544b60fc4dd87981c09e5492473a5a70b30c4cdfc7845fff66fbfc66314a4fde6fefbc4abc4e9bf2cec98c1ddea7a728896e2d90baa30e238d1ba88344a066cba0fe45981fd4d3319778166994a120d39124c5bd9e096705bcac3fb7a03e25f8f70d628156502ccd42da9a6984aeae3b910670aea70c91782d50c9ec116fb76ca163e82c886de84ab86c3f4b2742715fbc479414efebda045527516831752db5a382b668f6ebcc52d3c799d26312faeea01c4335758930a40f8bcc4f46e1a90f461bd18cc0da17444cb8b43ba58e6fe38b84e4e5f99ff18a5918335590c7fae6e5e81baaa50c584176876798b"
+            }
+        }
+    ]
+}

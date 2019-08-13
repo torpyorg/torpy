@@ -154,5 +154,8 @@ def user_data_dir(app_name):
     return os.path.join(path, app_name)
 
 
-def http_get(url, timeout=10):
-    return requests.get(url, headers={'User-Agent': None}, timeout=timeout).text
+def http_get(url, timeout=10, add_headers=None):
+    headers = {'User-Agent': None}  # Remove user agent
+    if add_headers:
+        headers.update(add_headers)
+    return requests.get(url, headers=headers, timeout=timeout).text

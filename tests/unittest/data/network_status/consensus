@@ -1,0 +1,58 @@
+network-status-version 3
+vote-status consensus
+consensus-method 26
+valid-after 2017-05-25 04:46:30
+fresh-until 2017-05-25 04:46:40
+valid-until 2017-05-25 04:46:50
+voting-delay 2 2
+client-versions 
+server-versions 
+known-flags Authority Exit Fast Guard HSDir NoEdConsensus Running Stable V2Dir Valid
+recommended-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2
+recommended-relay-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2
+required-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 LinkAuth=1 Microdesc=1-2 Relay=2
+required-relay-protocols Cons=1 Desc=1 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=3-4 LinkAuth=1 Microdesc=1 Relay=1-2
+dir-source test001a 596CD48D61FDA4E868F4AA10FF559917BE3B1A35 127.0.0.1 127.0.0.1 7001 5001
+contact auth1@test.test
+vote-digest 2E7177224BBA39B505F7608FF376C07884CF926F
+dir-source test000a BCB380A633592C218757BEE11E630511A485658A 127.0.0.1 127.0.0.1 7000 5000
+contact auth0@test.test
+vote-digest 5DD41617166FFB82882A117EEFDA0353A2794DC5
+r test002r NIIl+DyFR5ay3WNk5lyxibM71pY UzQp+EE8G0YCKtNlZVy+3h5tv0Q 2017-05-25 04:46:11 127.0.0.1 5002 7002
+s Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.0.7
+pr Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+p accept 1-65535
+r test001a qgzRpIKSW809FnL4tntRtWgOiwo x8yR5mi/DBbLg46qwGQ96Dno+nc 2017-05-25 04:46:12 127.0.0.1 5001 7001
+s Authority Exit Fast Guard HSDir Running V2Dir Valid
+v Tor 0.3.0.7
+pr Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+p reject 1-65535
+r test000a 3nJC+LvtNmx6kw23x1WE90pyIj4 Hg3NyPqDZoRQN8hVI5Vi6B+pofw 2017-05-25 04:46:12 127.0.0.1 5000 7000
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.0.7
+pr Cons=1-2 Desc=1-2 DirCache=1 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-4 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+p reject 1-65535
+directory-footer
+bandwidth-weights Wbd=3333 Wbe=0 Wbg=0 Wbm=10000 Wdb=10000 Web=10000 Wed=3333 Wee=10000 Weg=3333 Wem=10000 Wgb=10000 Wgd=3333 Wgg=10000 Wgm=10000 Wmb=10000 Wmd=3333 Wme=0 Wmg=0 Wmm=10000
+directory-signature 596CD48D61FDA4E868F4AA10FF559917BE3B1A35 9FBF54D6A62364320308A615BF4CF6B27B254FAD
+-----BEGIN SIGNATURE-----
+Ho0rLojfLHs9cSPFxe6znuGuFU8BvRr6gnH1gULTjUZO0NSQvo5N628KFeAsq+pT
+ElieQeV6UfwnYN1U2tomhBYv3+/p1xBxYS5oTDAITxLUYvH4pLYz09VutwFlFFtU
+r/satajuOMST0M3wCCBC4Ru5o5FSklwJTPJ/tWRXDCEHv/N5ZUUkpnNdn+7tFSZ9
+eFrPxPcQvB05BESo7C4/+ZnZVO/wduObSYu04eWwTEog2gkSWmsztKoXpx1QGrtG
+sNL22Ws9ySGDO/ykFFyxkcuyB5A8oPyedR7DrJUfCUYyB8o+XLNwODkCFxlmtFOj
+ci356fosgLiM1sVqCUkNdA==
+-----END SIGNATURE-----
+directory-signature BCB380A633592C218757BEE11E630511A485658A 9CA027E05B0CE1500D90DA13FFDA8EDDCD40A734
+-----BEGIN SIGNATURE-----
+uiAt8Ir27pYFX5fNKiVZDoa6ELVEtg/E3YeYHAnlSSRzpacLMMTN/HhF//Zvv8Zj
+FKT95v77xKvE6b8s7JjB3ep6coiW4tkLqjDiONG6iDRKBmy6D+RZgf1NMxl3gWaZ
+ShINORJMW9nglnBbysP7egPiX49w1igVZQLM1C2ppphK6uO5EGcK6nDJF4LVDJ7B
+Fvt2yhY+gsiG3oSrhsP0snQnFfvEeUFO/r2gRVJ1FoMXUttaOCtmj268xS08eZ0m
+MS+u6gHEM1dYkwpA+LzE9G4akPRhvRjMDaF0RMuLQ7pY5v44uE5OX5n/GKWRgzVZ
+DH+ubl6BuqpQxYQXaHZ5iw==
+-----END SIGNATURE-----

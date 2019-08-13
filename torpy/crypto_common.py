@@ -14,6 +14,7 @@
 #
 
 import base64
+import hashlib
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -36,6 +37,24 @@ def sha1(msg):
     sha = hashes.Hash(hashes.SHA1(), backend=bend)
     sha.update(msg)
     return sha.finalize()
+
+
+def sha3_256(msg):
+    sha = hashes.Hash(hashes.SHA3_256(), backend=bend)
+    sha.update(msg)
+    return sha.finalize()
+
+
+def hash_stream(name):
+    return hashlib.new(name)
+
+
+def hash_update(hash, msg):
+    return hash.update(msg)
+
+
+def hash_finalize(hash):
+    return hash.digest()
 
 
 def sha1_stream(init_msg=None):

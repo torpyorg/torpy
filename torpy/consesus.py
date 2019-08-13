@@ -20,8 +20,9 @@ from base64 import b32decode
 from threading import Lock
 
 from torpy.utils import retry, log_retry, http_get
-from torpy.router import RouterFlags
-from torpy.documents import TorConsensusDocument
+from torpy.documents import TorDocumentsFactory
+from torpy.documents.network_status import NetworkStatusDocument, RouterFlags
+from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 from torpy.cache_storage import TorCacheDirStorage
 
 logger = logging.getLogger(__name__)
@@ -45,18 +46,20 @@ class DirectoryAuthority:
         return self._name
 
     @property
-    def consensus_url(self):
-        """Consensus url of this authority."""
-        return 'http://{}/tor/status-vote/current/consensus'.format(self._address)
+    def status_url(self):
+        """Status url of this authority."""
+        return 'http://{}/tor/status-vote/current'.format(self._address)
 
-    def download_consensus(self):
+    def download(self, doc_type, prev_hash=None):
         """
-        Download consensus from this authority.
+        Download <doc_type> from this authority.
 
         Can raise exceptions if authority not available.
         :return: Consensus text
         """
-        return http_get(self.consensus_url)
+        # doc_type: consensus, consensus-microdesc, authority?
+        add_headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
+        return http_get('{}/{}'.format(self.status_url, doc_type), add_headers=add_headers)
 
 
 class DirectoryAuthoritiesList:
@@ -107,7 +110,9 @@ class TorConsensus:
         self._lock = Lock()
         self._authorities = authorities or DirectoryAuthoritiesList()
         self._cache_storage = cache_storage or TorCacheDirStorage()
-        self._document = self._cache_storage.load_document(TorConsensusDocument, link_consensus=self)
+        self._document = self._cache_storage.load_document(NetworkStatusDocument)
+        if self._document:
+            self._document.link_consensus(self)
         self.renew()
 
     @property
@@ -124,24 +129,33 @@ class TorConsensus:
             # tor ref: networkstatus_set_current_consensus
             authority = self._authorities.get_random()
             logger.info('Downloading new consensus from %s authority', authority.name)
-            consensus_raw = authority.download_consensus()
+            prev_hash = self._document.digest_sha3_256.hex() if self._document else None
+            raw_string = authority.download('consensus', prev_hash=prev_hash)
 
             # Make sure it's parseable
-            document = TorConsensusDocument(consensus_raw, self)
+            new_doc = TorDocumentsFactory.parse(raw_string,
+                                                possible=(NetworkStatusDocument, NetworkStatusDiffDocument))
+            if new_doc is None:
+                raise Exception('Unknown document has been received')
+
+            if type(new_doc) is NetworkStatusDiffDocument:
+                new_doc = self._document.apply_diff(new_doc)
+
+            new_doc.link_consensus(self)
 
             # TODO: Make sure it's signed enough
             # tor ref: networkstatus_check_consensus_signature
             # ...
 
             # Use new consensus document
-            self._document = document
-            self._cache_storage.save_document(document)
+            self._document = new_doc
+            self._cache_storage.save_document(new_doc)
 
     def get_router(self, fingerprint):
         # TODO: make mapping with fingerprint as key?
         fingerprint_b = b32decode(fingerprint.upper())
         return next(
-            onion_router for onion_router in self.document.routers_list if onion_router.fingerprint == fingerprint_b)
+            onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)
 
     def get_routers(self, flags=None, has_dir_port=True):
         """
@@ -153,8 +167,8 @@ class TorConsensus:
         """
         results = []
 
-        for onion_router in self.document.routers_list:
-            if flags and not onion_router.flags.all_present(flags):
+        for onion_router in self.document.routers:
+            if flags and not all(f in onion_router.flags for f in flags):
                 continue
             if has_dir_port and not onion_router.dir_port:
                 continue
@@ -174,19 +188,19 @@ class TorConsensus:
         return random.choice(routers)
 
     def get_random_guard_node(self, different_flags=None):
-        flags = different_flags or [RouterFlags.guard]
+        flags = different_flags or [RouterFlags.Guard]
         return self.get_random_router(flags)
 
     def get_random_exit_node(self):
-        flags = [RouterFlags.fast, RouterFlags.running, RouterFlags.valid, RouterFlags.exit]
+        flags = [RouterFlags.Fast, RouterFlags.Running, RouterFlags.Valid, RouterFlags.Exit]
         return self.get_random_router(flags)
 
     def get_random_middle_node(self):
-        flags = [RouterFlags.fast, RouterFlags.running, RouterFlags.valid]
+        flags = [RouterFlags.Fast, RouterFlags.Running, RouterFlags.Valid]
         return self.get_random_router(flags)
 
     def get_hsdirs(self):
-        flags = [RouterFlags.hsdir]
+        flags = [RouterFlags.HSDir]
         return self.get_routers(flags, has_dir_port=True)
 
     @retry(5, BaseException, log_func=functools.partial(log_retry, msg='Retry with another router...'))
