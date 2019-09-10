@@ -78,9 +78,10 @@ def test_adapter():
             r = s.get('https://google.com', timeout=30)
             logger.warning(r)
             logger.warning(r.text)
-            assert "</body></html>" in r.text
+            assert r.text.endswith("</body></html>")
 
-            r = s.get('https://cryptowat.ch/assets/btc')
+            r = s.get('https://stackoverflow.com/questions/tagged/python')
+            assert r.text.endswith("</html>")
             logger.warning(r)
             logger.warning(r.text)
 

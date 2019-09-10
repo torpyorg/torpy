@@ -14,9 +14,6 @@
 #
 
 import logging
-from datetime import datetime
-from enum import unique, Enum, auto
-from base64 import b16encode
 
 from torpy.documents.basics import TorDocument
 from torpy.documents.items import Item, ItemDate, ItemInt, ItemMulti
@@ -41,4 +38,3 @@ class DirKeyCertificate(TorDocument):
         ItemMulti('dir-key-crosscert', 'id signature'),
         ItemMulti('dir-key-certification', 'signature'),
     ]
-

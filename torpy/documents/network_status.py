@@ -44,7 +44,8 @@ class ItemSignature(ItemMulti):
         # document before signing it.
 
     def __init__(self, keyword):
-        super().__init__(keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures', as_list=True)
+        super().__init__(keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures',
+                         as_list=True)
 
 
 class DirSourceObject(TorDocumentObject):
