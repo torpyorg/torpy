@@ -34,12 +34,17 @@ class ItemSignature(ItemMulti):
 
         # [SP Algorithm] SP identity SP signing-key-digest
         if len(splits) == 2:
-            return {'identity': splits[0], 'signing_key_digest': splits[1]}
+            return {'algorithm': 'sha1', 'identity': splits[0], 'signing_key_digest': splits[1]}
         else:
             return {'algorithm': splits[0], 'identity': splits[1], 'signing_key_digest': splits[2]}
+        # The Algorithm is one of "sha1" or "sha256" if it is present;
+        # implementations MUST ignore directory-signature entries with an
+        # unrecognized Algorithm.  "sha1" is the default, if no Algorithm is
+        # given.  The algorithm describes how to compute the hash of the
+        # document before signing it.
 
     def __init__(self, keyword):
-        super().__init__(keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures')
+        super().__init__(keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures', as_list=True)
 
 
 class DirSourceObject(TorDocumentObject):
@@ -386,6 +391,11 @@ class NetworkStatusDocument(TorDocument):
     @property
     def digest_sha3_256(self):
         return self.get_digest('sha3_256')
+
+    def find_signature(self, identity):
+        for sign in self.signatures:
+            if sign['identity'] == identity:
+                return sign
 
     def apply_diff(self, diff):
         logger.info("Apply network-status-diff for %s to %s", self.digest_sha3_256.hex(), diff.to_digest.lower())

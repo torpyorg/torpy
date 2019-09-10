@@ -116,8 +116,8 @@ class ItemEnum(Item):
 
 
 class ItemMulti(Item):
-    def __init__(self, keyword, ml_name, parse_func=ItemParsers.store_string, out_name=None):
-        super().__init__(keyword, parse_func=self._parse, out_name=out_name, as_list=True)
+    def __init__(self, keyword, ml_name, parse_func=ItemParsers.store_string, out_name=None, as_list=False):
+        super().__init__(keyword, parse_func=self._parse, out_name=out_name, as_list=as_list)
         self._args_parse_func = parse_func
         self._ml_name = ml_name.replace(' ', '_')
         self._ml_start_line = f'-----BEGIN {ml_name.upper()}-----'

@@ -15,6 +15,7 @@
 
 import base64
 import hashlib
+from hmac import compare_digest
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -142,6 +143,26 @@ def dh_shared(private_key, another_public):
 
 def rsa_load_der(public_der_data):
     return serialization.load_der_public_key(public_der_data, backend=bend)
+
+
+def rsa_load_pem(public_pem_data):
+    return serialization.load_pem_public_key(public_pem_data, backend=bend)
+
+
+def rsa_verify(pubkey, sig, dig):
+    dig_size = len(dig)
+    sig_int = int(sig.hex(), 16)
+    pn = pubkey.public_numbers()
+    decoded = pow(sig_int, pn.e, pn.n)
+    buf = '%x' % decoded
+    if len(buf) % 2:
+        buf = '0' + buf
+    buf = '00' + buf
+    hash_buf = bytes.fromhex(buf)
+    assert hash_buf[:2] == b'\0\1'
+    assert hash_buf[2:-(dig_size + 1)] == b'\xff' * (len(hash_buf) - 2 - 1 - dig_size)
+    assert hash_buf[-(dig_size + 1)] == 0
+    return compare_digest(hash_buf[-dig_size:], dig)
 
 
 def rsa_encrypt(key, data):

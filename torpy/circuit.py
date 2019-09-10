@@ -40,8 +40,13 @@ class CircuitExtendError(Exception):
     """Circuit extend error."""
 
 
+# tor ref: or.h
+# #define ONION_HANDSHAKE_TYPE_TAP  0x0000
+# #define ONION_HANDSHAKE_TYPE_FAST 0x0001
+# #define ONION_HANDSHAKE_TYPE_NTOR 0x0002
 class TorHandshakeType:
-    TAP = 1
+    TAP = 0
+    FAST = 1
     NTOR = 2
 
 
@@ -298,7 +303,7 @@ class TorCircuit:
             elif self._state == TorCircuitState.Destroyed:
                 logger.debug('#%x circuit has been destroyed already', self.id)
             else:
-                raise Exception('#%x circuit is not yet connected'.format(self.id))
+                raise Exception('#{:x} circuit is not yet connected'.format(self.id))
 
             self._state = TorCircuitState.Destroyed
 

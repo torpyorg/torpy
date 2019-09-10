@@ -20,9 +20,11 @@ from base64 import b32decode
 from threading import Lock
 
 from torpy.utils import retry, log_retry, http_get
+from torpy.crypto_common import rsa_load_der, rsa_verify
 from torpy.documents import TorDocumentsFactory
 from torpy.documents.network_status import NetworkStatusDocument, RouterFlags
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
+from torpy.documents.dir_key_certificate import DirKeyCertificate
 from torpy.cache_storage import TorCacheDirStorage
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,11 @@ class DirectoryAuthority:
         return self._name
 
     @property
+    def fingerprint(self):
+        """Fingerprint of this authority."""
+        return self._fingerprint
+
+    @property
     def status_url(self):
         """Status url of this authority."""
         return 'http://{}/tor/status-vote/current'.format(self._address)
@@ -60,6 +67,16 @@ class DirectoryAuthority:
         # doc_type: consensus, consensus-microdesc, authority?
         add_headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
         return http_get('{}/{}'.format(self.status_url, doc_type), add_headers=add_headers)
+
+    # TODO: move to Router and inherit DirectoryAuthority from (Router)
+    @property
+    def fp_sk_url(self):
+        """Status url of this authority."""
+        return 'http://{}/tor/keys/fp-sk'.format(self._address)
+
+    def download_fp_sk(self, identity, keyid):
+        # TODO: multiple key download
+        return http_get('{}/{}-{}'.format(self.fp_sk_url, identity, keyid))
 
 
 class DirectoryAuthoritiesList:
@@ -95,6 +112,15 @@ class DirectoryAuthoritiesList:
                                '24E2 F139 121D 4394 C54B 5BCC 368B 3B41 1857 C413',
                                ipv6='[2620:13:4000:6000::1000:118]:443'),
         ]
+
+    def find(self, identity):
+        for authority in self._directory_authorities:
+            if identity == authority._v3ident:
+                return authority
+
+    @property
+    def count(self):
+        return len(self._directory_authorities)
 
     def get_random(self):
         """
@@ -143,13 +169,40 @@ class TorConsensus:
 
             new_doc.link_consensus(self)
 
-            # TODO: Make sure it's signed enough
-            # tor ref: networkstatus_check_consensus_signature
-            # ...
+            if not self.verify(new_doc):
+                raise Exception('Invalid consensus')
 
             # Use new consensus document
             self._document = new_doc
             self._cache_storage.save_document(new_doc)
+
+    def verify(self, new_doc):
+        # tor ref: networkstatus_check_consensus_signature
+        signed = 0
+        required = self._authorities.count / 2 + 1  # more 50% percents of authorities sign
+        for voter in new_doc.voters:
+            sign = new_doc.find_signature(voter.fingerprint)
+            if not sign:
+                logger.debug("Not sign by %s (%s)", voter.nickname, voter.fingerprint)
+                continue
+
+            trusted = self._authorities.find(sign['identity'])
+            if not trusted:
+                logger.warn("Unknown voter present")
+                continue
+
+            doc_digest = new_doc.get_digest(sign['algorithm'])
+            # TODO: download through circuit
+            pubkey = self._get_pubkey(sign['identity'], sign['signing_key_digest'])
+            if rsa_verify(pubkey, sign['signature'], doc_digest):
+                signed += 1
+        return signed >= required
+
+    def _get_pubkey(self, identity, signing_key_digest):
+        provider = self._authorities.get_random()
+        key_certificate = provider.download_fp_sk(identity, signing_key_digest)
+        certs = DirKeyCertificate(key_certificate)
+        return rsa_load_der(certs.dir_signing_key)
 
     def get_router(self, fingerprint):
         # TODO: make mapping with fingerprint as key?

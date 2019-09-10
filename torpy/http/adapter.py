@@ -162,7 +162,7 @@ class MyHTTPSConnection(VerifiedHTTPSConnection):
             raise NewConnectionError(self, "Failed to establish a new connection: %s" % e)
 
     def close(self):
-        logger.debug('[MyHTTPSConnection] closing')
+        logger.debug('[MyHTTPSConnection] closing %s', self.host)
         super().close()
         logger.debug('[MyHTTPSConnection] circuit destroy_stream')
         if self._tor_stream:
