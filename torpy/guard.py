@@ -115,7 +115,7 @@ class TorGuard:
 
     @retry(3, (CircuitExtendError, CellTimeoutError,),
            log_func=functools.partial(log_retry, msg='Retry circuit creation'))
-    def create_circuit_(self, hops_count):
+    def open_circuit(self, hops_count):
         if self._state != GuardState.Connected:
             raise Exception('You must connect to guard node first')
 
@@ -131,7 +131,7 @@ class TorGuard:
 
     @contextmanager
     def create_circuit(self, hops_count):
-        circuit = self.create_circuit_(hops_count)
+        circuit = self.open_circuit(hops_count)
         try:
             yield circuit
         finally:
@@ -141,3 +141,6 @@ class TorGuard:
         logger.info('Destroy circuit #%x', circuit.id)
         circuit.destroy(send_destroy=send_destroy)
         self._circuits_manager.remove(circuit.id)
+
+    def register(self, sock_or_stream, events, callback):
+        return self._receiver.register(sock_or_stream, events, callback)

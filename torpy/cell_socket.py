@@ -21,7 +21,7 @@ import logging
 import threading
 
 from torpy.cells import TorCell, CellCerts, CellNetInfo, TorCommands, CellVersions, CellAuthChallenge
-from torpy.utils import recv_exact
+from torpy.utils import coro_recv_exact
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +33,22 @@ class TorSocketConnectError(Exception):
 class TorCellSocket:
     """Handles communication with the relay."""
 
+    RECV_BUFF_SIZE = 4094
+
     def __init__(self, router):
         self._router = router
         self._socket = None
         self._protocol = TorProtocol()
         self._our_public_ip = '0'
         self._send_close_lock = threading.Lock()
+
+        self._cells_builder = self._cells_builder_gen()
+        self._data = bytearray()
+        self._next_len = None
+
+    @property
+    def ssl_socket(self):
+        return self._socket
 
     def connect(self):
         if self._socket:
@@ -50,10 +60,8 @@ class TorCellSocket:
         )
         logger.debug('Connecting socket to %s relay...', self._router)
         try:
-            self._socket.settimeout(10.0)
+            self._socket.settimeout(15.0)
             self._socket.connect((self._router.ip, self._router.tor_port))
-            # For non block _recv_loop
-            self._socket.settimeout(1.0)
 
             handshake = TorHandshake(self, self._protocol)
             handshake.initiate()
@@ -82,34 +90,61 @@ class TorCellSocket:
                 logger.warning('socket already closed')
 
     def recv_cell(self):
-        circuit_id, command_num = self._read_by_format(self._protocol.header_format)
-        cell_type = TorCommands.get_by_num(command_num)
-        payload = self._read_command_payload(cell_type)
-        # logger.debug("recv from socket: circuit_id = %x, command = %s,\n"
-        #             "payload = %s", circuit_id, cell_type.__name__, to_hex(payload))
-        return self._protocol.deserialize(cell_type, payload, circuit_id)
+        while self._socket:
+            self._next_len = self._next_len or next(self._cells_builder)
+            if len(self._data) < self._next_len:
+                more_data = self._socket.recv(TorCellSocket.RECV_BUFF_SIZE)
+                self._data.extend(more_data)
 
-    def parse_buffer(self, payload_buffer):
-        size = struct.calcsize(self._protocol.header_format)
-        circuit_id, command_num = struct.unpack(self._protocol.header_format, payload_buffer[:size])
-        cell_type = TorCommands.get_by_num(command_num)
-        return self._protocol.deserialize(cell_type, payload_buffer[size:], circuit_id)
+            for cell in self._build_next_cell():
+                # Return first built cell
+                return cell
+            # Or read more data from socket
+
+    def recv_cell_async(self):
+        more_data = self._socket.recv(TorCellSocket.RECV_BUFF_SIZE)
+        self._data.extend(more_data)
+        self._next_len = self._next_len or next(self._cells_builder)
+        yield from self._build_next_cell()
+
+    def _build_next_cell(self):
+        while len(self._data) >= self._next_len:
+            send_buff = self._data[:self._next_len]
+            self._data = self._data[self._next_len:]
+
+            self._next_len = self._cells_builder.send(send_buff)
+            if self._next_len is None:
+                # New cell was built
+                cell = next(self._cells_builder)
+                yield cell
+                self._next_len = next(self._cells_builder)
+        logger.debug('Need more data (%i bytes, has %i bytes)', self._next_len, len(self._data))
+
+    def _cells_builder_gen(self):
+        while self._socket:
+            circuit_id, command_num = yield from self._read_by_format(self._protocol.header_format)
+            cell_type = TorCommands.get_by_num(command_num)
+            payload = yield from self._read_command_payload(cell_type)
+            # logger.debug("recv from socket: circuit_id = %x, command = %s,\n"
+            #              "payload = %s", circuit_id, cell_type.__name__, to_hex(payload))
+            cell = self._protocol.deserialize(cell_type, payload, circuit_id)
+            yield None
+            yield cell
 
     def _read_command_payload(self, cell_type):
         if cell_type.is_var_len():
-            length, = self._read_by_format(self._protocol.length_format)
+            length, = yield from self._read_by_format(self._protocol.length_format)
         else:
-            # TODO: MAX_PAYLOAD_SIZE = 509
-            length = 509
-        # TODO: use select?
-        return recv_exact(self._socket, length)
+            length = TorCell.MAX_PAYLOAD_SIZE
+        cell_buff = yield from coro_recv_exact(length)
+        return cell_buff
 
-    def _read_by_format(self, format):
-        size = struct.calcsize(format)
-        data = recv_exact(self._socket, size)
+    def _read_by_format(self, struct_fmt):
+        size = struct.calcsize(struct_fmt)
+        data = yield from coro_recv_exact(size)
         if not data:
             raise NoDataException()
-        return struct.unpack(format, data)
+        return struct.unpack(struct_fmt, data)
 
 
 class NoDataException(Exception):
@@ -210,6 +245,7 @@ class TorHandshake:
     def _retrieve_certs(self):
         logger.debug('Retrieving CERTS cell...')
         cell_certs = self.tor_socket.recv_cell()
+
         assert isinstance(cell_certs, CellCerts)
         # TODO: check certs validity
 
@@ -221,7 +257,6 @@ class TorHandshake:
         logger.debug('Retrieving NET_INFO cell...')
         cell = self.tor_socket.recv_cell()
         assert isinstance(cell, CellNetInfo)
-        # self._our_public_ip = cell.payload["our_address"]
         logger.debug('Our public IP address: %s', cell.this_or)
 
     def _send_net_info(self):

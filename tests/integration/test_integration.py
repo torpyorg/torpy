@@ -14,7 +14,10 @@
 #
 
 import os
+import socket
 import logging
+from threading import Event
+from selectors import EVENT_READ
 from multiprocessing.pool import ThreadPool
 
 import requests
@@ -60,7 +63,8 @@ def test_onion_raw():
         with circuit.create_stream((hostname, 80)) as stream:
             # Send some data to it
             stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
-            recv = stream.recv(1024).decode()
+
+            recv = recv_all(stream).decode()
             logger.warning('recv: %s', recv)
             assert 'StickyNotes' in recv, 'wrong data received'
 
@@ -184,3 +188,34 @@ def test_requests_hidden():
         r = sess.get('http://{}/'.format(HS_BASIC_HOST), timeout=30)
         logger.warning(r)
         logger.warning(r.text)
+
+
+def test_select():
+    sock_r, sock_w = socket.socketpair()
+
+    sock_ev = Event()
+    stream_ev = Event()
+
+    def sock_recv(sock, mask):
+        data = sock.recv(1024)
+        logger.info("sock: %r", data.decode())
+        sock_ev.set()
+
+    def stream_recv(stream, mask):
+        data = stream.recv(1024)
+        logger.info("stream: %r", data.decode())
+        stream_ev.set()
+
+    hostname = 'ifconfig.me'
+    tor = TorClient()
+    with tor.get_guard() as guard:
+        with guard.create_circuit(3) as circuit:
+            with circuit.create_stream((hostname, 80)) as stream:
+                guard.register(sock_r, EVENT_READ, sock_recv)
+                guard.register(stream, EVENT_READ, stream_recv)
+
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
+                sock_w.send(b'test data')
+
+                sock_ev.wait(30)
+                stream_ev.wait(30)

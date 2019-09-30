@@ -159,10 +159,11 @@ def rsa_verify(pubkey, sig, dig):
         buf = '0' + buf
     buf = '00' + buf
     hash_buf = bytes.fromhex(buf)
-    assert hash_buf[:2] == b'\0\1'
-    assert hash_buf[2:-(dig_size + 1)] == b'\xff' * (len(hash_buf) - 2 - 1 - dig_size)
-    assert hash_buf[-(dig_size + 1)] == 0
-    return compare_digest(hash_buf[-dig_size:], dig)
+
+    pad_type = b'\0\1'
+    pad_len = (len(hash_buf) - 2 - 1 - dig_size)
+    cmp_dig = pad_type + b'\xff' * pad_len + b'\0' + dig
+    return compare_digest(hash_buf, cmp_dig)
 
 
 def rsa_encrypt(key, data):

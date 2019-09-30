@@ -17,14 +17,14 @@ import socket
 import logging
 import threading
 from contextlib import contextmanager
+from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 
 from torpy.cells import CellRelayTruncated, CellRelayEnd, CellRelayData, CellRelaySendMe, CellRelayConnected, \
     CellDestroy, CircuitReason, CellCreate2, CellCreated2, RelayedTorCell, CellRelay, CellRelayExtend2, \
     CellRelayExtended2, CellRelayEarly, CellRelayEstablishRendezvous, CellRelayRendezvousEstablished, \
     CellRelayIntroduce1, CellRelayIntroduceAck
 from torpy.utils import ignore
-from torpy.stream import TorWindow, StreamsManager
-from torpy.cell_socket import NoDataException
+from torpy.stream import TorStream, TorWindow, StreamsManager
 from torpy.crypto_state import CryptoState
 from torpy.keyagreement import TapKeyAgreement, NtorKeyAgreement
 from torpy.hiddenservice import DescriptorNotAvailable, HiddenServiceConnector
@@ -133,43 +133,100 @@ class Waiter:
         return self._read_cell
 
 
-class TorReceiver:
+class TorReceiver(threading.Thread):
     def __init__(self, tor_socket, handler_mgr):
-        self._tor_socket = tor_socket
-        self._ident = self._tor_socket.ip_address[0:7]
-        self._handler_mgr = handler_mgr
+        super().__init__(name='RecvLoop_{}'.format(tor_socket.ip_address[0:7]))
 
+        self._tor_socket = tor_socket
+
+        self._handler_mgr = handler_mgr
         self._do_loop = False
-        self._thread = None
+
+        self._regs_funcs_map = {
+            'reg': {
+                socket.socket: self.register_socket,
+                TorStream: self.register_stream
+            },
+            'unreg': {
+                socket.socket: self.unregister_socket,
+                TorStream: self.unregister_stream
+            }
+        }
+        self._stream_to_callback = {}
+        self._selector = DefaultSelector()
+
+        self._cntrl_r, self._cntrl_w = socket.socketpair()
+        self._selector.register(self._cntrl_r, EVENT_READ, self._do_stop)
+        self._selector.register(self._tor_socket.ssl_socket, EVENT_READ, self._do_recv)
+
+    def _cleanup(self):
+        self._selector.unregister(self._cntrl_r)
+        self._cntrl_w.close()
+        self._cntrl_r.close()
+        self._selector.unregister(self._tor_socket.ssl_socket)
+        self._selector.close()
 
     def start(self):
         self._do_loop = True
-        self._thread = threading.Thread(target=self._recv_loop, name='RecvLoop_{}'.format(self._ident))
-        self._thread.start()
+        super().start()
 
     def stop(self):
         logger.debug('Stopping receiver thread...')
+        self._cntrl_w.send(b'\1')
+        self.join()
+
+    def register(self, sock_or_stream, events, callback):
+        func = self._regs_funcs_map['reg'].get(type(sock_or_stream))
+        if not func:
+            raise Exception('Unknown object for register')
+        return func(sock_or_stream, events, callback)
+
+    def register_socket(self, sock, events, callback):
+        return self._selector.register(sock, events, callback)
+
+    def register_stream(self, stream: TorStream, events, callback):
+        if events & EVENT_WRITE:
+            raise Exception('Write event not supported yet')
+        stream.register(callback)
+        if stream not in self._stream_to_callback:
+            self._stream_to_callback[stream] = []
+        self._stream_to_callback[stream].append(callback)
+
+    def unregister(self, sock_or_stream):
+        func = self._regs_funcs_map['unreg'].get(type(sock_or_stream))
+        if not func:
+            raise Exception('Unknown object for unregister')
+        return func(sock_or_stream)
+
+    def unregister_socket(self, sock):
+        return self._selector.unregister(sock)
+
+    def unregister_stream(self, stream):
+        callbacks = self._stream_to_callback.pop(stream)
+        for callback in callbacks:
+            stream.unregister(callback)
+
+    def _do_stop(self, raw_socket, mask):
         self._do_loop = False
-        if self._thread != threading.current_thread():
-            self._thread.join()
 
-    def _recv_loop(self):
-        try:
-            while self._do_loop:
-                try:
-                    cell = self._tor_socket.recv_cell()
-                except socket.timeout:
-                    continue
-                except NoDataException:
-                    continue
-                logger.debug('Cell received: %r', cell)
+    def _do_recv(self, raw_socket, mask):
+        for cell in self._tor_socket.recv_cell_async():
+            logger.debug('Cell received: %r', cell)
+            try:
+                self._handler_mgr.handle(cell)
+            except BaseException:
+                logger.exception("Some handle errors")
 
-                try:
-                    self._handler_mgr.handle(cell)
-                except BaseException:
-                    logger.exception("Some handle errors")
-        except BaseException:
-            logger.exception('Some errors in recv loop')
+    def run(self):
+        logger.debug("Starting...")
+        while self._do_loop:
+            events = self._selector.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+
+        self._cleanup()
+        logger.debug("Stopped...")
 
 
 class TorCircuitState:
@@ -284,8 +341,8 @@ class TorCircuit:
             self._handler_mgr.subscribe_for([CellRelayData, CellRelaySendMe, CellRelayConnected], self._on_stream)
             logger.debug('Circuit created')
 
-    def create_new_circuit_(self, hops_count=0):
-        return self._guard.create_circuit_(hops_count)
+    def open_new_circuit(self, hops_count=0):
+        return self._guard.open_circuit(hops_count)
 
     @contextmanager
     def create_new_circuit(self, hops_count=0):
@@ -296,7 +353,7 @@ class TorCircuit:
         with self._state_lock:
             if self._state == TorCircuitState.Connected:
                 # Destroy all streams belonging to the current circuit
-                self.destroy_all_streams()
+                self.close_all_streams()
                 if send_destroy:
                     # Destroy the circuit itself
                     self._send(CellDestroy(CircuitReason.FINISHED, self.id))
@@ -307,9 +364,9 @@ class TorCircuit:
 
             self._state = TorCircuitState.Destroyed
 
-    def destroy_all_streams(self):
+    def close_all_streams(self):
         for stream in list(self._stream_manager.streams()):
-            self.destroy_stream(stream)
+            self.close_stream(stream)
 
     def _initialize(self, router):
         """
@@ -391,7 +448,7 @@ class TorCircuit:
     def _on_stream_end(self, cell, from_node, orig_cell):
         stream = self._stream_manager.get_by_id(orig_cell.stream_id)
         if stream:
-            self.destroy_stream(stream)
+            self.close_stream(stream)
 
     def _on_truncated(self, cell, from_node, orig_cell):
         # tor ref: circuit_truncated
@@ -505,7 +562,7 @@ class TorCircuit:
         logger.debug('Circuit has been built')
 
     @check_connected
-    def create_stream_(self, address=None):
+    def open_stream(self, address=None):
         tor_stream = self._stream_manager.create_new()
         if address:
             tor_stream.connect(address)
@@ -515,16 +572,16 @@ class TorCircuit:
     @check_connected
     @contextmanager
     def create_stream(self, address=None):
-        tor_stream = self.create_stream_()
+        tor_stream = self.open_stream()
         try:
             if address:
                 tor_stream.connect(address)
             yield tor_stream
         finally:
-            self.destroy_stream(tor_stream)
+            self.close_stream(tor_stream)
 
-    def destroy_stream(self, tor_stream):
-        self._stream_manager.destroy(tor_stream)
+    def close_stream(self, tor_stream):
+        self._stream_manager.close(tor_stream)
 
     def _rendezvous_establish(self, rendezvous_cookie):
         assert len(rendezvous_cookie) == 20

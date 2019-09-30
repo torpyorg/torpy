@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 class TorCell:
     NUM = -1
 
+    MAX_PAYLOAD_SIZE = 509
+
     def __init__(self, circuit_id=0):
         self.circuit_id = circuit_id
 

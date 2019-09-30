@@ -65,8 +65,8 @@ class DirectoryAuthority:
         :return: Consensus text
         """
         # doc_type: consensus, consensus-microdesc, authority?
-        add_headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-        return http_get('{}/{}'.format(self.status_url, doc_type), add_headers=add_headers)
+        headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
+        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers)
 
     # TODO: move to Router and inherit DirectoryAuthority from (Router)
     @property
@@ -179,7 +179,8 @@ class TorConsensus:
     def verify(self, new_doc):
         # tor ref: networkstatus_check_consensus_signature
         signed = 0
-        required = self._authorities.count / 2 + 1  # more 50% percents of authorities sign
+        required = self._authorities.count / 2
+
         for voter in new_doc.voters:
             sign = new_doc.find_signature(voter.fingerprint)
             if not sign:
@@ -196,7 +197,7 @@ class TorConsensus:
             pubkey = self._get_pubkey(sign['identity'], sign['signing_key_digest'])
             if rsa_verify(pubkey, sign['signature'], doc_digest):
                 signed += 1
-        return signed >= required
+        return signed > required  # more 50% percents of authorities sign
 
     def _get_pubkey(self, identity, signing_key_digest):
         provider = self._authorities.get_random()

@@ -123,6 +123,8 @@ class TorStream:
         self._buffer = bytearray()
         self._data_lock = threading.Lock()
         self._has_data = threading.Event()
+        self._received_callbacks = []
+
         self._conn_timeout = 30
         self._recv_timeout = 60
 
@@ -154,11 +156,22 @@ class TorStream:
             self._window.deliver_dec()
             if self._window.need_sendme():
                 self._send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
+            self._call_received()
         elif isinstance(cell, CellRelaySendMe):
             logger.debug('Stream #%i: sendme received', self.id)
             self._window.package_inc()
         else:
             raise Exception('Unknown stream cell received: %r', type(cell))
+
+    def register(self, callback):
+        self._received_callbacks.append(callback)
+
+    def unregister(self, callback):
+        self._received_callbacks.append(callback)
+
+    def _call_received(self):
+        for callback in self._received_callbacks:
+            callback(self, EVENT_READ)
 
     def _send_relay(self, inner_cell):
         return self._circuit._send_relay(inner_cell, stream_id=self.id)
@@ -342,7 +355,7 @@ class StreamsManager:
         for stream in self._stream_map.values():
             yield stream
 
-    def destroy(self, tor_stream):
+    def close(self, tor_stream):
         with self._streams_lock:
             connect = tor_stream.state in [StreamState.Connected, StreamState.Connecting]
             stream_id = tor_stream.id

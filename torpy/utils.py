@@ -19,8 +19,7 @@ import logging
 import threading
 import contextlib
 from base64 import b64encode
-
-import requests
+from urllib import request
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +124,17 @@ def recv_exact(sock, n):
     return data
 
 
+def coro_recv_exact(n):
+    data = b''
+    while n:
+        chunk = yield n
+        if not chunk:
+            break
+        n -= len(chunk)
+        data += chunk
+    return data
+
+
 def recv_all(sock):
     """Receive data until connection is closed."""
     data = b''
@@ -154,8 +164,15 @@ def user_data_dir(app_name):
     return os.path.join(path, app_name)
 
 
-def http_get(url, timeout=10, add_headers=None):
-    headers = {'User-Agent': None}  # Remove user agent
-    if add_headers:
-        headers.update(add_headers)
-    return requests.get(url, headers=headers, timeout=timeout).text
+def _to_urllib_headers(headers):
+    if not headers:
+        return []
+    return [(k, v) for k, v in headers.items()]
+
+
+def http_get(url, timeout=10, headers=None):
+    opener = request.build_opener()
+    opener.addheaders = _to_urllib_headers(headers)
+
+    with opener.open(url, timeout=timeout) as f:
+        return f.read().decode('utf-8')
