@@ -1,8 +1,8 @@
 Torpy ![Python Versions] [![Build Status](https://travis-ci.com/torpyorg/torpy.svg?branch=master)](https://travis-ci.com/torpyorg/torpy) [![Coverage Status](https://coveralls.io/repos/github/torpyorg/torpy/badge.svg?branch=master)](https://coveralls.io/github/torpyorg/torpy?branch=master)
 =====
 
-A pure-Python implementation of the Tor protocol.
-Torpy can be used to communicate with clearnet hosts or hidden services through the [Tor Network](https://torproject.org/about/overview.html). 
+A pure python Tor client implementation of the Tor protocol.
+Torpy can be used to communicate with clearnet hosts or hidden services through the [Tor Network](https://torproject.org/about/overview.html).
 
 **Features**
 - No Stem or official Tor client required
