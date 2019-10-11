@@ -32,7 +32,7 @@ class TorCacheDirStorage(TorCacheStorage):
     def __init__(self, base_dir=None):
         self._base_dir = base_dir or user_data_dir('torpy')
         if not os.path.isdir(self._base_dir):
-            os.mkdir(self._base_dir)
+            os.makedirs(self._base_dir)
 
     def load(self, key):
         file_path = os.path.join(self._base_dir, key)
