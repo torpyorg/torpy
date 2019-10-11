@@ -1,29 +1,15 @@
+---
 environment:
-  PYTHONUNBUFFERED: 1
   matrix:
+  - TOXENV: py36-unit
+  - TOXENV: py36-integration
+  - TOXENV: py37-unit
+  - TOXENV: py37-integration
 
-  - PYTHON: "C:\\Python36"
-    TOX_ENV: "py36"
-
-  - PYTHON: "C:\\Python37"
-    TOX_ENV: "py37"
-
-
-init:
-- "%PYTHON%/python -V"
+build: off
 
 install:
-- "%PYTHON%/Scripts/pip install -U pip setuptools"
-- "%PYTHON%/Scripts/pip install -U -r requirements.txt -r requirements-test.txt -r requirements-flake8.txt"
-
-build: false
+- pip install tox
 
 test_script:
-- "%PYTHON%/Scripts/flake8 torpy tests setup.py"
-- "%PYTHON%/Scripts/py.test -xv --cov torpy tests"
-
-after_test:
-- "%PYTHON%/Scripts/coveralls"
-
-artifacts:
-- path: dist\*
+- tox
