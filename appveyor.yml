@@ -13,8 +13,8 @@ init:
 - "%PYTHON%/python -V"
 
 install:
-- "%PYTHON%/Scripts/pip install -U --user pip"
-- "%PYTHON%/Scripts/pip install -U --user -r requirements.txt -r requirements-test.txt -r requirements-flake8.txt"
+- "%PYTHON%/Scripts/pip install -U pip setuptools"
+- "%PYTHON%/Scripts/pip install -U -r requirements.txt -r requirements-test.txt -r requirements-flake8.txt"
 
 build: false
 
