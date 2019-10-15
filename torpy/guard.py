@@ -1,6 +1,5 @@
 import logging
 import functools
-from contextlib import contextmanager
 
 from torpy.cell_socket import TorCellSocket
 from torpy.cells import CellDestroy, CellCreated2, CellRelay, CellRelayTruncated
@@ -44,24 +43,8 @@ class TorGuard:
         self._consensus = consensus
         self._auth_data = auth_data
 
-        self.__tor_socket = None
-        self._circuits_manager = None
-        self._handler_mgr = None
-        self._sender = None
-        self._receiver = None
-        self._state = GuardState.Disconnected
-
-    def __enter__(self):
-        """Return Guard object."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Disconnect from Guard node."""
-        self.close()
-
-    def connect(self):
-        logger.info('Connecting to guard node %s...', self._router)
         self._state = GuardState.Connecting
+        logger.info('Connecting to guard node %s...', self._router)
         self.__tor_socket = TorCellSocket(self._router)
         self.__tor_socket.connect()
 
@@ -77,6 +60,14 @@ class TorGuard:
         self._receiver.start()
 
         self._state = GuardState.Connected
+
+    def __enter__(self):
+        """Return Guard object."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Disconnect from Guard node."""
+        self.close()
 
     def close(self):
         logger.info('Closing guard connections...')
@@ -115,7 +106,7 @@ class TorGuard:
 
     @retry(3, (CircuitExtendError, CellTimeoutError,),
            log_func=functools.partial(log_retry, msg='Retry circuit creation'))
-    def open_circuit(self, hops_count):
+    def create_circuit(self, hops_count):
         if self._state != GuardState.Connected:
             raise Exception('You must connect to guard node first')
 
@@ -129,14 +120,6 @@ class TorGuard:
 
         return circuit
 
-    @contextmanager
-    def create_circuit(self, hops_count):
-        circuit = self.open_circuit(hops_count)
-        try:
-            yield circuit
-        finally:
-            self.destroy_circuit(circuit)
-
     def destroy_circuit(self, circuit, send_destroy=True):
         logger.info('Destroy circuit #%x', circuit.id)
         circuit.destroy(send_destroy=send_destroy)
@@ -144,3 +127,6 @@ class TorGuard:
 
     def register(self, sock_or_stream, events, callback):
         return self._receiver.register(sock_or_stream, events, callback)
+
+    def unregister(self, sock_or_stream):
+        self._receiver.unregister(sock_or_stream)

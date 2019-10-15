@@ -18,12 +18,16 @@ import logging
 import time
 import struct
 from base64 import b32decode, b32encode, b64decode
+from typing import TYPE_CHECKING
 
 from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
 from torpy.http.client import HttpClient
 from torpy.crypto_common import sha1, aes_ctr_decryptor, aes_update
+
+if TYPE_CHECKING:
+    from torpy.circuit import TorCircuit
 
 logger = logging.getLogger(__name__)
 
@@ -253,13 +257,13 @@ class ResponsibleDir:
 
 
 class IntroductionPoint:
-    def __init__(self, router, circuit):
+    def __init__(self, router, circuit: 'TorCircuit'):
         self._introduction_router = router
         self._circuit = circuit
 
     def connect(self, hidden_service):
         # Waiting for CellRelayRendezvous2 in our main circuit
-        with self._circuit._create_waiter(CellRelayRendezvous2) as w:
+        with self._circuit.create_waiter(CellRelayRendezvous2) as w:
             # Create introduction point circuit
             with self._circuit.create_new_circuit() as intro_circuit:
                 intro_circuit.extend(self._introduction_router)

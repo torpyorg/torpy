@@ -23,6 +23,7 @@ from multiprocessing.pool import ThreadPool
 import requests
 
 from torpy import TorClient
+from torpy.stream import TorStream
 from torpy.utils import AuthType, recv_all
 from torpy.http.adapter import TorHttpAdapter
 from torpy.hiddenservice import HiddenService
@@ -82,7 +83,7 @@ def test_adapter():
             r = s.get('https://google.com', timeout=30)
             logger.warning(r)
             logger.warning(r.text)
-            assert r.text.rstrip().endswith("</body></html>")
+            assert r.text.rstrip().endswith("</html>")
 
             r = s.get('https://stackoverflow.com/questions/tagged/python')
             assert r.text.rstrip().endswith("</html>")
@@ -193,29 +194,35 @@ def test_requests_hidden():
 def test_select():
     sock_r, sock_w = socket.socketpair()
 
-    sock_ev = Event()
-    stream_ev = Event()
-
-    def sock_recv(sock, mask):
-        data = sock.recv(1024)
-        logger.info("sock: %r", data.decode())
-        sock_ev.set()
-
-    def stream_recv(stream, mask):
-        data = stream.recv(1024)
-        logger.info("stream: %r", data.decode())
-        stream_ev.set()
+    events = {TorStream: {'data': Event(), 'close': Event()},
+              socket.socket: {'data': Event(), 'close': Event()}}
 
     hostname = 'ifconfig.me'
     tor = TorClient()
     with tor.get_guard() as guard:
+
+        def recv_callback(sock_or_stream, mask):
+            kind = type(sock_or_stream)
+            data = sock_or_stream.recv(1024)
+            logger.info("%s: %r", kind.__name__, data.decode())
+            if data:
+                events[kind]['data'].set()
+            else:
+                logger.debug("closing")
+                guard.unregister(sock_or_stream)
+                events[kind]['close'].set()
+
         with guard.create_circuit(3) as circuit:
             with circuit.create_stream((hostname, 80)) as stream:
-                guard.register(sock_r, EVENT_READ, sock_recv)
-                guard.register(stream, EVENT_READ, stream_recv)
+                guard.register(sock_r, EVENT_READ, recv_callback)
+                guard.register(stream, EVENT_READ, recv_callback)
 
                 stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
-                sock_w.send(b'test data')
+                sock_w.send(b'some data')
 
-                sock_ev.wait(30)
-                stream_ev.wait(30)
+                assert events[socket.socket]['data'].wait(10), 'no sock data received'
+                assert events[TorStream]['data'].wait(30), 'no stream data received'
+
+                sock_w.close()
+                assert events[socket.socket]['close'].wait(10), 'no sock close received'
+                assert events[TorStream]['close'].wait(10), 'no stream close received'

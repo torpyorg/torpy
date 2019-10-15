@@ -107,7 +107,7 @@ class TorSocketLoop(threading.Thread):
 class StreamState:
     Connecting = 1
     Connected = 2
-    Closing = 3
+    Disconnected = 3
     Closed = 4
 
 
@@ -135,6 +135,14 @@ class TorStream:
 
         self._loop = None
 
+    def __enter__(self):
+        """Start using the stream."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close the stream."""
+        self.close()
+
     @property
     def id(self):
         return self._id
@@ -151,6 +159,9 @@ class TorStream:
         logger.debug(cell)
         if isinstance(cell, CellRelayConnected):
             self._connected(cell)
+        elif isinstance(cell, CellRelayEnd):
+            self._end(cell)
+            self._call_received()
         elif isinstance(cell, CellRelayData):
             self._append(cell.data)
             self._window.deliver_dec()
@@ -167,7 +178,7 @@ class TorStream:
         self._received_callbacks.append(callback)
 
     def unregister(self, callback):
-        self._received_callbacks.append(callback)
+        self._received_callbacks.remove(callback)
 
     def _call_received(self):
         for callback in self._received_callbacks:
@@ -187,23 +198,21 @@ class TorStream:
                 self._has_data.set()
 
     def close(self):
+        self._circuit.close_stream(self)
+
+    def _close(self):
         logger.info('Stream #%i: closing...', self.id)
 
         with self._close_lock:
-            if self._state not in [StreamState.Connecting, StreamState.Connected]:
-                logger.warning('Stream #%i: not connected yet', self.id)
-                return
-            elif self._state == StreamState.Closed:
+            if self._state == StreamState.Closed:
                 logger.warning('Stream #%i: closed already', self.id)
                 return
 
-            self._state = StreamState.Closing
-            self._send_relay(CellRelayEnd(StreamReason.DONE, self._circuit.id))
+            if self._state == StreamState.Connected:
+                self._send_relay(CellRelayEnd(StreamReason.DONE, self._circuit.id))
 
             if self.has_socket_loop:
                 self.close_socket()
-
-            self._has_data.set()
 
             self._state = StreamState.Closed
             logger.debug('Stream #%i: closed', self.id)
@@ -260,6 +269,11 @@ class TorStream:
         self._state = StreamState.Connected
         logger.debug('Stream #%i: connected (remote ip %r)', self.id, cell_connected.address)
 
+    def _end(self, cell_end):
+        self._state = StreamState.Disconnected
+        logger.debug('Stream #%i: remote disconnected (reason = %s)', self.id, cell_end.reason.name)
+        self._has_data.set()
+
     def _create_socket_loop(self):
         our_sock, client_sock = socket.socketpair()
         logger.debug("Created sock pair: our_sock = %x, client_sock = %x", our_sock.fileno(), client_sock.fileno())
@@ -300,6 +314,9 @@ class TorStream:
     def recv(self, bufsize):
         if self.has_socket_loop:
             raise Exception('You must use socket')
+
+        if self._state == StreamState.Disconnected:
+            return b''
 
         while True:
             if len(self._buffer) != 0:
@@ -357,16 +374,11 @@ class StreamsManager:
 
     def close(self, tor_stream):
         with self._streams_lock:
-            connect = tor_stream.state in [StreamState.Connected, StreamState.Connecting]
-            stream_id = tor_stream.id
+            tor_stream._close()
 
-            if connect:
-                # Stream can be closed by remote already
-                tor_stream.close()
-
-            stream = self._stream_map.pop(stream_id, None)
-            if not stream and connect:
-                logger.error('Stream #%i: not found in stream map', stream_id)
+            stream = self._stream_map.pop(tor_stream.id, None)
+            if not stream:
+                logger.debug('Stream #%i: not found in stream map', tor_stream.id)
 
     def get_by_id(self, stream_id):
         return self._stream_map.get(stream_id, None)

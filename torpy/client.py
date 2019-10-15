@@ -16,11 +16,16 @@
 import logging
 import functools
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from torpy.guard import TorGuard
+from torpy.circuit import TorCircuit
 from torpy.utils import retry, log_retry
 from torpy.consesus import TorConsensus
 from torpy.cache_storage import TorCacheDirStorage
+
+if TYPE_CHECKING:
+    from typing import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +46,9 @@ class TorClient:
     def get_guard(self, by_flags=None):
         # TODO: add another stuff to filter guards
         guard_router = self._consensus.get_random_guard_node(by_flags)
-        guard = TorGuard(guard_router, self._consensus, self._auth_data)
-        guard.connect()
-        return guard
+        return TorGuard(guard_router, self._consensus, self._auth_data)
 
     @contextmanager
-    def create_circuit(self, hops_count=3, guard_by_flags=None):
+    def create_circuit(self, hops_count=3, guard_by_flags=None) -> 'ContextManager[TorCircuit]':
         with self.get_guard(guard_by_flags) as guard:
-            with guard.create_circuit(hops_count) as circuit:
-                yield circuit
+            yield guard.create_circuit(hops_count)

@@ -202,7 +202,9 @@ class TorReceiver(threading.Thread):
         return self._selector.unregister(sock)
 
     def unregister_stream(self, stream):
-        callbacks = self._stream_to_callback.pop(stream)
+        callbacks = self._stream_to_callback.pop(stream, None)
+        if not callbacks:
+            raise Exception('There is no such stream registered')
         for callback in callbacks:
             stream.unregister(callback)
 
@@ -330,6 +332,18 @@ class TorCircuit:
         self._associated_hs = None
         self._extend_lock = threading.Lock()
 
+    def __enter__(self):
+        """Start using the circuit."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close the circuit."""
+        self.close()
+
+    def close(self):
+        if self._guard is not None:
+            self._guard.destroy_circuit(self)
+
     def create(self, guard):
         with self._state_lock:
             assert self._state == TorCircuitState.Unknown, 'Circuit already connected'
@@ -337,17 +351,12 @@ class TorCircuit:
             self._state = TorCircuitState.Connected
             self._guard = guard
             self._handler_mgr.subscribe_for(CellRelayTruncated, self._on_truncated)
-            self._handler_mgr.subscribe_for(CellRelayEnd, self._on_stream_end)
-            self._handler_mgr.subscribe_for([CellRelayData, CellRelaySendMe, CellRelayConnected], self._on_stream)
+            self._handler_mgr.subscribe_for([CellRelayData, CellRelaySendMe, CellRelayConnected, CellRelayEnd],
+                                            self._on_stream)
             logger.debug('Circuit created')
 
-    def open_new_circuit(self, hops_count=0):
-        return self._guard.open_circuit(hops_count)
-
-    @contextmanager
     def create_new_circuit(self, hops_count=0):
-        with self._guard.create_circuit(hops_count) as new_circuit:
-            yield new_circuit
+        return self._guard.create_circuit(hops_count)
 
     def destroy(self, send_destroy=True):
         with self._state_lock:
@@ -445,11 +454,6 @@ class TorCircuit:
                 self._send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
         return False
 
-    def _on_stream_end(self, cell, from_node, orig_cell):
-        stream = self._stream_manager.get_by_id(orig_cell.stream_id)
-        if stream:
-            self.close_stream(stream)
-
     def _on_truncated(self, cell, from_node, orig_cell):
         # tor ref: circuit_truncated
         logger.error('Circuit #%x was truncated by remote (%s)', self.id, cell.reason.name)
@@ -490,11 +494,9 @@ class TorCircuit:
     def _send(self, cell):
         return self._sender.send(cell)
 
-    @contextmanager
-    def _create_waiter(self, wait_cell):
+    def create_waiter(self, wait_cell):
         # WARN: only for one thread things
-        with self._handler_mgr.create_waiter(wait_cell) as w:
-            yield w
+        return self._handler_mgr.create_waiter(wait_cell)
 
     def _send_wait(self, cell, wait_cell):
         with self._handler_mgr.create_waiter(wait_cell) as w:
@@ -562,23 +564,11 @@ class TorCircuit:
         logger.debug('Circuit has been built')
 
     @check_connected
-    def open_stream(self, address=None):
+    def create_stream(self, address=None):
         tor_stream = self._stream_manager.create_new()
         if address:
             tor_stream.connect(address)
-        # WARN: you must call destroy_stream after usage
         return tor_stream
-
-    @check_connected
-    @contextmanager
-    def create_stream(self, address=None):
-        tor_stream = self.open_stream()
-        try:
-            if address:
-                tor_stream.connect(address)
-            yield tor_stream
-        finally:
-            self.close_stream(tor_stream)
 
     def close_stream(self, tor_stream):
         self._stream_manager.close(tor_stream)

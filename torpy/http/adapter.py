@@ -39,7 +39,7 @@ class TorInfo:
             circuit = self._circuits.get(host_key)
             if not circuit:
                 logger.debug('[TorInfo] Create new circuit for %s (key %s)', host, host_key)
-                circuit = self._guard.open_circuit(self._hops_count)
+                circuit = self._guard.create_circuit(self._hops_count)
                 self._circuits[host_key] = circuit
             else:
                 logger.debug("[TorInfo] Use existing...")
@@ -115,7 +115,7 @@ class MyHTTPConnection(HTTPConnection):
     def connect(self):
         logger.debug('[MyHTTPConnection] connect %s:%i', self.host, self.port)
         try:
-            self._tor_stream = self._circuit.open_stream((self.host, self.port))
+            self._tor_stream = self._circuit.create_stream((self.host, self.port))
             logger.debug('[MyHTTPConnection] tor_stream create_socket')
             self.sock = self._tor_stream.create_socket()
             if self._tunnel_host:
@@ -135,7 +135,7 @@ class MyHTTPConnection(HTTPConnection):
         super().close()
         logger.debug('[MyHTTPConnection] circuit destroy_stream')
         if self._tor_stream:
-            self._circuit.close_stream(self._tor_stream)
+            self._tor_stream.close()
         logger.debug('[MyHTTPConnection] closed')
 
 
@@ -149,7 +149,7 @@ class MyHTTPSConnection(VerifiedHTTPSConnection):
     def _new_conn(self):
         logger.debug('[MyHTTPSConnection] new conn %s:%i', self.host, self.port)
         try:
-            self._tor_stream = self._circuit.open_stream((self.host, self.port))
+            self._tor_stream = self._circuit.create_stream((self.host, self.port))
             logger.debug('[MyHTTPSConnection] tor_stream create_socket')
             return self._tor_stream.create_socket()
         except TimeoutError:
@@ -166,5 +166,5 @@ class MyHTTPSConnection(VerifiedHTTPSConnection):
         super().close()
         logger.debug('[MyHTTPSConnection] circuit destroy_stream')
         if self._tor_stream:
-            self._circuit.close_stream(self._tor_stream)
+            self._tor_stream.close()
         logger.debug('[MyHTTPSConnection] closed')
