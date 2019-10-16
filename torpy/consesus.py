@@ -66,7 +66,7 @@ class DirectoryAuthority:
         """
         # doc_type: consensus, consensus-microdesc, authority?
         headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers)
+        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers, timeout=30)
 
     # TODO: move to Router and inherit DirectoryAuthority from (Router)
     @property
@@ -85,12 +85,12 @@ class DirectoryAuthoritiesList:
     def __init__(self):
         # tor ref src\app\config\auth_dirs.inc
         self._directory_authorities = [
-            DirectoryAuthority('moria1', '128.31.0.34:9131', 9101, 'D586D18309DED4CD6D57C18FDB97EFA96D330566',
+            DirectoryAuthority('moria1', '128.31.0.39:9131', 9101, 'D586D18309DED4CD6D57C18FDB97EFA96D330566',
                                '9695 DFC3 5FFE B861 329B 9F1A B04C 4639 7020 CE31'),
             DirectoryAuthority('tor26', '86.59.21.38:80', 443, '14C131DFC5C6F93646BE72FA1401C02A8DF2E8B4',
                                '847B 1F85 0344 D787 6491 A548 92F9 0493 4E4E B85D',
                                ipv6='[2001:858:2:2:aabb:0:563b:1526]:443'),
-            DirectoryAuthority('dizum', '194.109.206.212:80', 443, 'E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58',
+            DirectoryAuthority('dizum', '45.66.33.45:80', 443, 'E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58',
                                '7EA6 EAD6 FD83 083C 538F 4403 8BBF A077 587D D755'),
             DirectoryAuthority('Serge', '66.111.2.131:9030', 9001, None,
                                'BA44 A889 E64B 93FA A2B1 14E0 2C2A 279A 8555 C533',
@@ -98,7 +98,7 @@ class DirectoryAuthoritiesList:
             DirectoryAuthority('gabelmoo', '131.188.40.189:80', 443, 'ED03BB616EB2F60BEC80151114BB25CEF515B226',
                                'F204 4413 DAC2 E02E 3D6B CF47 35A1 9BCA 1DE9 7281',
                                ipv6='[2001:638:a000:4140::ffff:189]:443'),
-            DirectoryAuthority('dannenberg', '193.23.244.244:80', 443, '585769C78764D58426B8B52B6651A5A71137189A',
+            DirectoryAuthority('dannenberg', '193.23.244.244:80', 443, '0232AF901C31A04EE9848595AF9BB7620D4C5B2E',
                                '7BE6 83E6 5D48 1413 21C5 ED92 F075 C553 64AC 7123',
                                ipv6='[2001:678:558:1000::244]:443'),
             DirectoryAuthority('maatuska', '171.25.193.9:443', 80, '49015F787433103580E3B66A1707A00E60F2D15B',
@@ -189,7 +189,7 @@ class TorConsensus:
 
             trusted = self._authorities.find(sign['identity'])
             if not trusted:
-                logger.warn("Unknown voter present")
+                logger.warning("Unknown voter present")
                 continue
 
             doc_digest = new_doc.get_digest(sign['algorithm'])

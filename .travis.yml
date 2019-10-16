@@ -3,6 +3,7 @@ language: python
 python:
   - "3.6"
   - "3.7"
+  - "3.8"
 install:
   - pip install coveralls
   - pip install -r requirements.txt -r requirements-test.txt -r requirements-flake8.txt

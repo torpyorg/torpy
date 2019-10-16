@@ -15,6 +15,8 @@
 
 import os
 import sys
+import zlib
+import gzip
 import logging
 import threading
 import contextlib
@@ -164,15 +166,17 @@ def user_data_dir(app_name):
     return os.path.join(path, app_name)
 
 
-def _to_urllib_headers(headers):
-    if not headers:
-        return []
-    return [(k, v) for k, v in headers.items()]
-
-
 def http_get(url, timeout=10, headers=None):
     opener = request.build_opener()
-    opener.addheaders = _to_urllib_headers(headers)
 
-    with opener.open(url, timeout=timeout) as f:
-        return f.read().decode('utf-8')
+    real_headers = {'Accept-encoding': 'gzip, deflate'}
+    real_headers.update(headers or {})
+    opener.addheaders = [(k, v) for k, v in real_headers.items()]
+
+    with opener.open(url, timeout=timeout) as response:
+        data = response.read()
+        if response.info().get('Content-Encoding') == 'gzip':
+            data = gzip.decompress(data)
+        elif response.info().get('Content-Encoding') == 'deflate':
+            data = zlib.decompress(data)
+        return data.decode('utf-8')

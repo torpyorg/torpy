@@ -90,7 +90,7 @@ class TorCellEmpty(TorCell):
         super().__init__(circuit_id)
         self._data = data or b''
         if len(self._data) > 0:
-            logger.warn('Has some unnecessary data: %r', self._data)
+            logger.warning('Has some unnecessary data: %r', self._data)
 
     def _serialize_payload(self):
         return self._data

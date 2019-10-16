@@ -5,6 +5,8 @@ environment:
   - TOXENV: py36-integration
   - TOXENV: py37-unit
   - TOXENV: py37-integration
+  - TOXENV: py38-unit
+  - TOXENV: py38-integration
 
 build: off
 

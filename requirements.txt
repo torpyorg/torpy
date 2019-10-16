@@ -4,8 +4,8 @@
 #
 #    pip-compile setup.py
 #
-asn1crypto==0.24.0        # via cryptography
-cffi==1.12.3              # via cryptography
+asn1crypto==1.1.0         # via cryptography
+cffi==1.13.0              # via cryptography
 cryptography==2.7
 pycparser==2.19           # via cffi
 requests==2.11.1
