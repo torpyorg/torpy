@@ -16,9 +16,20 @@
 import logging
 
 from torpy.crypto import kdf_tor
-from torpy.crypto_common import dh_private, dh_public, dh_public_to_bytes, dh_public_from_bytes, dh_shared,\
-    curve25519_get_shared, curve25519_private, curve25519_public_from_private, curve25519_public_from_bytes,\
-    curve25519_to_bytes, hkdf_sha256, hmac
+from torpy.crypto_common import (
+    hmac,
+    dh_public,
+    dh_shared,
+    dh_private,
+    hkdf_sha256,
+    curve25519_private,
+    dh_public_to_bytes,
+    curve25519_to_bytes,
+    dh_public_from_bytes,
+    curve25519_get_shared,
+    curve25519_public_from_bytes,
+    curve25519_public_from_private,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -170,9 +181,9 @@ class NtorKeyAgreement:
         # The server's handshake reply is:
         # SERVER_PK   Y                       [G_LENGTH bytes]
         # AUTH        H(auth_input, t_mac)    [H_LENGTH bytes]
-        y = handshake_data[:32]     # ntor data curve25519::public_key::key_size_in_bytes
+        y = handshake_data[:32]  # ntor data curve25519::public_key::key_size_in_bytes
         auth = handshake_data[32:]  # ntor auth is SHA1, 32 in bytes?
-        assert len(auth) == 32      #
+        assert len(auth) == 32  #
 
         # The client then checks Y is in G^* [see NOTE below], and computes
 

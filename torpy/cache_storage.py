@@ -1,8 +1,8 @@
 import os
 import logging
 
-from torpy.documents import TorDocument
 from torpy.utils import user_data_dir
+from torpy.documents import TorDocument
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class TorCacheStorage:
         assert issubclass(doc_cls, TorDocument)
         ident, content = self.load(doc_cls.DOCUMENT_NAME)
         if content:
-            logger.info("Loading cached %s from %s: %s", doc_cls.__name__, self.__class__.__name__, ident)
+            logger.info('Loading cached %s from %s: %s', doc_cls.__name__, self.__class__.__name__, ident)
             return doc_cls(content, **kwargs)
         else:
             return None

@@ -16,7 +16,7 @@
 import os
 import logging
 
-from torpy.crypto_common import sha1, aes_ctr_encryptor, aes_update, rsa_load_der, rsa_encrypt
+from torpy.crypto_common import sha1, aes_update, rsa_encrypt, rsa_load_der, aes_ctr_encryptor
 
 logger = logging.getLogger(__name__)
 

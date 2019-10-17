@@ -1,10 +1,10 @@
 import logging
 import functools
 
-from torpy.cell_socket import TorCellSocket
-from torpy.cells import CellDestroy, CellCreated2, CellRelay, CellRelayTruncated
-from torpy.circuit import CellHandlerManager, TorReceiver, CircuitExtendError, CellTimeoutError, CircuitsManager
+from torpy.cells import CellRelay, CellDestroy, CellCreated2, CellRelayTruncated
 from torpy.utils import retry, log_retry
+from torpy.circuit import TorReceiver, CircuitsManager, CellTimeoutError, CellHandlerManager, CircuitExtendError
+from torpy.cell_socket import TorCellSocket
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,12 @@ def cell_to_circuit(func):
         circuit = _self._circuits_manager.get_by_id(cell.circuit_id)
         if not circuit:
             if _self._state != GuardState.Connected:
-                logger.debug("Ignore not found circuits on %r state", _self._state)
+                logger.debug('Ignore not found circuits on %r state', _self._state)
                 return
             raise Exception('Circuit #{:x} not found'.format(cell.circuit_id))
         args_new = [_self, cell, circuit] + list(args)
         return func(*args_new, **kwargs)
+
     return wrapped
 
 
@@ -104,8 +105,9 @@ class TorGuard:
     def _on_relay(self, cell: CellRelay, circuit):
         circuit.handle_relay(cell)
 
-    @retry(3, (CircuitExtendError, CellTimeoutError,),
-           log_func=functools.partial(log_retry, msg='Retry circuit creation'))
+    @retry(
+        3, (CircuitExtendError, CellTimeoutError), log_func=functools.partial(log_retry, msg='Retry circuit creation')
+    )
     def create_circuit(self, hops_count):
         if self._state != GuardState.Connected:
             raise Exception('You must connect to guard node first')

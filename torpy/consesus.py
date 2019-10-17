@@ -19,13 +19,13 @@ import functools
 from base64 import b32decode
 from threading import Lock
 
-from torpy.utils import retry, log_retry, http_get
-from torpy.crypto_common import rsa_load_der, rsa_verify
+from torpy.utils import retry, http_get, log_retry
 from torpy.documents import TorDocumentsFactory
-from torpy.documents.network_status import NetworkStatusDocument, RouterFlags
-from torpy.documents.network_status_diff import NetworkStatusDiffDocument
-from torpy.documents.dir_key_certificate import DirKeyCertificate
 from torpy.cache_storage import TorCacheDirStorage
+from torpy.crypto_common import rsa_verify, rsa_load_der
+from torpy.documents.network_status import RouterFlags, NetworkStatusDocument
+from torpy.documents.dir_key_certificate import DirKeyCertificate
+from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,7 @@ class DirectoryAuthoritiesList:
 
     def __init__(self):
         # tor ref src\app\config\auth_dirs.inc
+        # fmt: off
         self._directory_authorities = [
             DirectoryAuthority('moria1', '128.31.0.39:9131', 9101, 'D586D18309DED4CD6D57C18FDB97EFA96D330566',
                                '9695 DFC3 5FFE B861 329B 9F1A B04C 4639 7020 CE31'),
@@ -112,6 +113,7 @@ class DirectoryAuthoritiesList:
                                '24E2 F139 121D 4394 C54B 5BCC 368B 3B41 1857 C413',
                                ipv6='[2620:13:4000:6000::1000:118]:443'),
         ]
+        # fmt: on
 
     def find(self, identity):
         for authority in self._directory_authorities:
@@ -159,8 +161,7 @@ class TorConsensus:
             raw_string = authority.download('consensus', prev_hash=prev_hash)
 
             # Make sure it's parseable
-            new_doc = TorDocumentsFactory.parse(raw_string,
-                                                possible=(NetworkStatusDocument, NetworkStatusDiffDocument))
+            new_doc = TorDocumentsFactory.parse(raw_string, possible=(NetworkStatusDocument, NetworkStatusDiffDocument))
             if new_doc is None:
                 raise Exception('Unknown document has been received')
 
@@ -184,12 +185,12 @@ class TorConsensus:
         for voter in new_doc.voters:
             sign = new_doc.find_signature(voter.fingerprint)
             if not sign:
-                logger.debug("Not sign by %s (%s)", voter.nickname, voter.fingerprint)
+                logger.debug('Not sign by %s (%s)', voter.nickname, voter.fingerprint)
                 continue
 
             trusted = self._authorities.find(sign['identity'])
             if not trusted:
-                logger.warning("Unknown voter present")
+                logger.warning('Unknown voter present')
                 continue
 
             doc_digest = new_doc.get_digest(sign['algorithm'])
@@ -208,8 +209,7 @@ class TorConsensus:
     def get_router(self, fingerprint):
         # TODO: make mapping with fingerprint as key?
         fingerprint_b = b32decode(fingerprint.upper())
-        return next(
-            onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)
+        return next(onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)
 
     def get_routers(self, flags=None, has_dir_port=True):
         """

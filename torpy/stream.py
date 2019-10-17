@@ -14,15 +14,23 @@
 #
 
 import time
-import logging
 import socket
+import logging
 import threading
 from selectors import EVENT_READ, DefaultSelector
 from contextlib import contextmanager
 
-from torpy.cells import CellRelayConnected, CellRelayData, CellRelaySendMe, CellRelayEnd, CellRelayBeginDir,\
-    CellRelayBegin, RelayedTorCell, StreamReason
-from torpy.utils import chunks, AuthType
+from torpy.cells import (
+    CellRelayEnd,
+    StreamReason,
+    CellRelayData,
+    CellRelayBegin,
+    RelayedTorCell,
+    CellRelaySendMe,
+    CellRelayBeginDir,
+    CellRelayConnected,
+)
+from torpy.utils import AuthType, chunks
 from torpy.hiddenservice import HiddenService
 
 logger = logging.getLogger(__name__)
@@ -90,7 +98,7 @@ class TorSocketLoop(threading.Thread):
         self._cntrl_w.send(b'\1')
 
     def run(self):
-        logger.debug("Starting...")
+        logger.debug('Starting...')
         while self._do_loop:
             events = self._selector.select()
             for key, _ in events:
@@ -98,7 +106,7 @@ class TorSocketLoop(threading.Thread):
                 callback(key.fileobj)
 
         self._cleanup()
-        logger.debug("Stopped...")
+        logger.debug('Stopped...')
 
     def append(self, data):
         self._our_sock.send(data)
@@ -242,12 +250,12 @@ class TorStream:
         start_time = time.time()
         while True:
             if time.time() - start_time > timeout:
-                raise TimeoutError("Could not connect to %r" % (address, ))
+                raise TimeoutError('Could not connect to %r' % (address,))
 
             if self._state == StreamState.Connected:
                 return
             elif self._state == StreamState.Closed:
-                raise Exception("Could not connect to %r" % (address, ))
+                raise Exception('Could not connect to %r' % (address,))
 
             time.sleep(0.2)
 
@@ -258,7 +266,7 @@ class TorStream:
 
         inner_cell = CellRelayBeginDir()
         self._send_relay(inner_cell)
-        self._wait_connected("hsdir", self._conn_timeout)
+        self._wait_connected('hsdir', self._conn_timeout)
 
     def _connect(self, address):
         inner_cell = CellRelayBegin(address[0], address[1])
@@ -276,12 +284,12 @@ class TorStream:
 
     def _create_socket_loop(self):
         our_sock, client_sock = socket.socketpair()
-        logger.debug("Created sock pair: our_sock = %x, client_sock = %x", our_sock.fileno(), client_sock.fileno())
+        logger.debug('Created sock pair: our_sock = %x, client_sock = %x', our_sock.fileno(), client_sock.fileno())
 
         # Flush data
         with self._data_lock:
             if len(self._buffer):
-                logger.debug("Flush buffer")
+                logger.debug('Flush buffer')
                 our_sock.send(self._buffer)
                 self._buffer.clear()
 
@@ -290,12 +298,12 @@ class TorStream:
 
     @contextmanager
     def as_socket(self):
-        logger.debug("[as_socket] start")
+        logger.debug('[as_socket] start')
         client_socket = self.create_socket()
         try:
             yield client_socket
         finally:
-            logger.debug("[as_socket] finally")
+            logger.debug('[as_socket] finally')
             client_socket.close()
             self.close_socket()
 
@@ -325,7 +333,7 @@ class TorStream:
                 break
             signaled = self._has_data.wait(self._recv_timeout)
             if not signaled:
-                raise Exception("recv timeout")
+                raise Exception('recv timeout')
 
         with self._data_lock:
             if bufsize == -1:

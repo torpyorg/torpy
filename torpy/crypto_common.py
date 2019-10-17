@@ -109,8 +109,9 @@ def curve25519_to_bytes(key):
     if isinstance(key, X25519PublicKey):
         return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     else:
-        return key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
-                                 serialization.NoEncryption())
+        return key.private_bytes(
+            serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption()
+        )
 
 
 _P = 179769313486231590770839156793787453197860296048756011706444423684197180216158519368947833795864925541502180565485980503646440548199239100050792877003355816639229553136239076508735759914822574862575007425302077447712589550957937778424442426617334727629299387668709205606050270810842907692932019128194467627007  # noqa: E501
@@ -161,16 +162,15 @@ def rsa_verify(pubkey, sig, dig):
     hash_buf = bytes.fromhex(buf)
 
     pad_type = b'\0\1'
-    pad_len = (len(hash_buf) - 2 - 1 - dig_size)
+    pad_len = len(hash_buf) - 2 - 1 - dig_size
     cmp_dig = pad_type + b'\xff' * pad_len + b'\0' + dig
     return compare_digest(hash_buf, cmp_dig)
 
 
 def rsa_encrypt(key, data):
-    return key.encrypt(data, padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA1()),
-        algorithm=hashes.SHA1(),
-        label=None))
+    return key.encrypt(
+        data, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA1()), algorithm=hashes.SHA1(), label=None)
+    )
 
 
 def aes_ctr_encryptor(key, iv=b'\0' * 16):

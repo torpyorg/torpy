@@ -33,16 +33,16 @@ class TorInfo:
 
     def get_circuit(self, host):
         host_key = '.'.join(host.split('.')[-2:])
-        logger.debug("[TorInfo] Waiting lock...")
+        logger.debug('[TorInfo] Waiting lock...')
         with self._lock:
-            logger.debug("[TorInfo] Got lock...")
+            logger.debug('[TorInfo] Got lock...')
             circuit = self._circuits.get(host_key)
             if not circuit:
                 logger.debug('[TorInfo] Create new circuit for %s (key %s)', host, host_key)
                 circuit = self._guard.create_circuit(self._hops_count)
                 self._circuits[host_key] = circuit
             else:
-                logger.debug("[TorInfo] Use existing...")
+                logger.debug('[TorInfo] Use existing...')
             return circuit
 
 
@@ -57,8 +57,9 @@ class TorHttpAdapter(HTTPAdapter):
         self._pool_maxsize = maxsize
         self._pool_block = block
 
-        self.poolmanager = MyPoolManager(self._tor_info, num_pools=connections, maxsize=maxsize,
-                                         block=block, strict=True, **pool_kwargs)
+        self.poolmanager = MyPoolManager(
+            self._tor_info, num_pools=connections, maxsize=maxsize, block=block, strict=True, **pool_kwargs
+        )
 
 
 class MyPoolManager(PoolManager):
@@ -82,11 +83,16 @@ class MyHTTPConnectionPool(HTTPConnectionPool):
 
     def _new_conn(self):
         self.num_connections += 1
-        logger.debug("[MyHTTPConnectionPool] new_conn %i", self.num_connections)
+        logger.debug('[MyHTTPConnectionPool] new_conn %i', self.num_connections)
         circuit = self._tor_info.get_circuit(self.host)
-        return MyHTTPConnection(circuit, host=self.host, port=self.port,
-                                timeout=self.timeout.connect_timeout,
-                                strict=self.strict, **self.conn_kw)
+        return MyHTTPConnection(
+            circuit,
+            host=self.host,
+            port=self.port,
+            timeout=self.timeout.connect_timeout,
+            strict=self.strict,
+            **self.conn_kw,
+        )
 
 
 class MyHTTPSConnectionPool(HTTPSConnectionPool):
@@ -96,12 +102,17 @@ class MyHTTPSConnectionPool(HTTPSConnectionPool):
 
     def _new_conn(self):
         self.num_connections += 1
-        logger.debug("[MyHTTPSConnectionPool] new_conn %i", self.num_connections)
+        logger.debug('[MyHTTPSConnectionPool] new_conn %i', self.num_connections)
         circuit = self._tor_info.get_circuit(self.host)
-        conn = MyHTTPSConnection(circuit, host=self.host, port=self.port,
-                                 timeout=self.timeout.connect_timeout,
-                                 strict=self.strict, **self.conn_kw)
-        logger.debug("[MyHTTPSConnectionPool] preparing...")
+        conn = MyHTTPSConnection(
+            circuit,
+            host=self.host,
+            port=self.port,
+            timeout=self.timeout.connect_timeout,
+            strict=self.strict,
+            **self.conn_kw,
+        )
+        logger.debug('[MyHTTPSConnectionPool] preparing...')
         return self._prepare_conn(conn)
         # TODO: override close to close all circuits?
 
@@ -121,13 +132,13 @@ class MyHTTPConnection(HTTPConnection):
             if self._tunnel_host:
                 self._tunnel()
         except TimeoutError:
-            logger.error("TimeoutError")
+            logger.error('TimeoutError')
             raise ConnectTimeoutError(
-                self, "Connection to %s timed out. (connect timeout=%s)" %
-                (self.host, self.timeout))
+                self, 'Connection to %s timed out. (connect timeout=%s)' % (self.host, self.timeout)
+            )
         except Exception as e:
-            logger.error("NewConnectionError")
-            raise NewConnectionError(self, "Failed to establish a new connection: %s" % e)
+            logger.error('NewConnectionError')
+            raise NewConnectionError(self, 'Failed to establish a new connection: %s' % e)
 
     def close(self):
         # WARN: self.sock will be closed inside base class
@@ -140,7 +151,6 @@ class MyHTTPConnection(HTTPConnection):
 
 
 class MyHTTPSConnection(VerifiedHTTPSConnection):
-
     def __init__(self, circuit, *args, **kwargs):
         self._circuit = circuit
         self._tor_stream = None
@@ -153,13 +163,13 @@ class MyHTTPSConnection(VerifiedHTTPSConnection):
             logger.debug('[MyHTTPSConnection] tor_stream create_socket')
             return self._tor_stream.create_socket()
         except TimeoutError:
-            logger.error("TimeoutError")
+            logger.error('TimeoutError')
             raise ConnectTimeoutError(
-                self, "Connection to %s timed out. (connect timeout=%s)" %
-                (self.host, self.timeout))
+                self, 'Connection to %s timed out. (connect timeout=%s)' % (self.host, self.timeout)
+            )
         except Exception as e:
-            logger.error("NewConnectionError")
-            raise NewConnectionError(self, "Failed to establish a new connection: %s" % e)
+            logger.error('NewConnectionError')
+            raise NewConnectionError(self, 'Failed to establish a new connection: %s' % e)
 
     def close(self):
         logger.debug('[MyHTTPSConnection] closing %s', self.host)

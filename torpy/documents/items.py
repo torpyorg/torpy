@@ -22,15 +22,15 @@ from torpy.crypto_common import b64decode
 class ItemType:
     #   "Exactly once": These items MUST occur exactly one time in every
     #       instance of the document type.
-    ExactlyOnce = 1,
+    ExactlyOnce = 1
 
     #     "At most once": These items MAY occur zero or one times in any
     #       instance of the document type, but MUST NOT occur more than once.
-    AtMostOnce = 2,
+    AtMostOnce = 2
 
     #     "Any number": These items MAY occur zero, one, or more times in any
     #       instance of the document type.
-    AnyNumber = 3,
+    AnyNumber = 3
 
     #     "Once or more": These items MUST occur at least once in any instance
     #       of the document type, and MAY occur more.
@@ -54,8 +54,15 @@ class ItemParsers:
 
 
 class Item:
-    def __init__(self, keyword, parse_func=ItemParsers.store_string, parse_args=None, out_name=None,
-                 type=ItemType.ExactlyOnce, as_list=False):
+    def __init__(
+        self,
+        keyword,
+        parse_func=ItemParsers.store_string,
+        parse_args=None,
+        out_name=None,
+        type=ItemType.ExactlyOnce,
+        as_list=False,
+    ):
         self.keyword = keyword
         self.parse_func = parse_func
         self.parse_args = parse_args or []
@@ -136,7 +143,7 @@ class ItemMulti(Item):
         line = next(lines)
         if line != self._ml_start_line:
             raise Exception(f'Begin line for {self.keyword} not found')
-        ml = ""
+        ml = ''
         for line in lines:
             if line == self._ml_end_line:
                 break

@@ -255,8 +255,11 @@ class RelayedTorCell(TorCell):
             payload_bytes += struct.pack('!H', self._stream_id)
             payload_bytes += struct.pack('!4s', self._digest if self._digest else b'\x00' * 4)  # Digest placeholder
             if len(relay_payload) > RelayedTorCell.MAX_PAYLOD_SIZE:
-                raise Exception('relay payload length cannot be more than {} ({} got)'.format(
-                    RelayedTorCell.MAX_PAYLOD_SIZE, len(relay_payload)))
+                raise Exception(
+                    'relay payload length cannot be more than {} ({} got)'.format(
+                        RelayedTorCell.MAX_PAYLOD_SIZE, len(relay_payload)
+                    )
+                )
             assert len(relay_payload) + len(self._padding) <= RelayedTorCell.MAX_PAYLOD_SIZE, 'wrong relay payload size'
             payload_bytes += struct.pack('!H', len(relay_payload))
             payload_bytes += struct.pack('!{}s'.format(RelayedTorCell.MAX_PAYLOD_SIZE), relay_payload + self._padding)
@@ -359,9 +362,9 @@ class CellRelayExtend2(TorCell):
 
     def __init__(self, ip, port, fingerprint, skin):
         super().__init__()
-        self.nspec = 2          # 2x NSPEC
-        self.link_type = 0      # link_specifier_type::ipv4
-        self.finger_type = 2    # link_specifier_type::legacy_id
+        self.nspec = 2  # 2x NSPEC
+        self.link_type = 0  # link_specifier_type::ipv4
+        self.finger_type = 2  # link_specifier_type::legacy_id
         self.ip = ip
         self.port = port
         self.fingerprint = fingerprint
@@ -596,8 +599,16 @@ class CellRelayEstablishRendezvous(TorCell):
 class CellRelayIntroduce1(TorCell):
     NUM = 34
 
-    def __init__(self, introduction_point, introduction_point_key,
-                 introducee, rendezvous_cookie, auth_type, descriptor_cookie, circuit_id):
+    def __init__(
+        self,
+        introduction_point,
+        introduction_point_key,
+        introducee,
+        rendezvous_cookie,
+        auth_type,
+        descriptor_cookie,
+        circuit_id,
+    ):
         super().__init__(circuit_id)
         self.introduction_point = introduction_point
         self.introduction_point_key = introduction_point_key
@@ -636,7 +647,7 @@ class CellRelayIntroduce1(TorCell):
         if auth_type != AuthType.No:
             assert len(descriptor_cookie) == 16
             handshake += struct.pack('!H16s', len(descriptor_cookie), descriptor_cookie)
-        handshake += struct.pack('!I', 0)   # timestamp
+        handshake += struct.pack('!I', 0)  # timestamp
         handshake += struct.pack('!4sH', socket.inet_aton(introducee.ip), introducee.tor_port)
         assert len(introducee.fingerprint) == 20
         handshake += struct.pack('!20s', introducee.fingerprint)
@@ -722,6 +733,7 @@ class TorCommands:
     """
 
     _map = {
+        # fmt: off
         # Fixed-length command values.
         CellPadding.NUM: CellPadding,               # 0
         # CellCreate.NUM: CellCreate                 # 1
@@ -741,6 +753,7 @@ class TorCommands:
         CellCerts.NUM: CellCerts,                   # 129
         CellAuthChallenge.NUM: CellAuthChallenge,   # 130
         # CellAuthenticate.NUM: CellAuthenticate,    # 131
+        # fmt: on
     }
 
     @classmethod
@@ -758,6 +771,7 @@ class TorCommands:
     # by either edge; streams are initiated by the OP.
     #
     _map2 = {
+        # fmt: off
         CellRelayBegin.NUM: CellRelayBegin,            # 1
         CellRelayData.NUM: CellRelayData,              # 2
         CellRelayEnd.NUM: CellRelayEnd,                # 3
@@ -776,11 +790,13 @@ class TorCommands:
         # ...
         CellRelayEstablishRendezvous.NUM: CellRelayEstablishRendezvous,         # 33
         CellRelayIntroduce1.NUM: CellRelayIntroduce1,                           # 34
-        CellRelayRendezvous2.NUM: CellRelayRendezvous2,
+        CellRelayRendezvous2.NUM: CellRelayRendezvous2,                         # 37
         # ...
         CellRelayRendezvousEstablished.NUM: CellRelayRendezvousEstablished,     # 39
-        CellRelayIntroduceAck.NUM: CellRelayIntroduceAck,  # 40
+        CellRelayIntroduceAck.NUM: CellRelayIntroduceAck,                       # 40
+        # fmt: on
     }
+
     @classmethod
     def get_relay_by_num(cls, num):
         cell_type = cls._map2.get(num, None)
@@ -789,6 +805,7 @@ class TorCommands:
         return cell_type
 
 
+# fmt: off
 @unique
 class StreamReason(IntEnum):
     MISC = 1              # (catch-all for unlisted reasons)
@@ -822,3 +839,4 @@ class CircuitReason(IntEnum):
     TIMEOUT = 10          # (Circuit construction took too long)
     DESTROYED = 11        # (The circuit was destroyed w/o client TRUNCATE)
     NO_SUCH_SERVICE = 12  # (Request for unknown hidden service)
+# fmt: on

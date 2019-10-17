@@ -44,28 +44,30 @@ class ItemSignature(ItemMulti):
         # document before signing it.
 
     def __init__(self, keyword):
-        super().__init__(keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures',
-                         as_list=True)
+        super().__init__(
+            keyword, 'signature', parse_func=ItemSignature._parse_args, out_name='signatures', as_list=True
+        )
 
 
 class DirSourceObject(TorDocumentObject):
 
     # [Exactly once, at start]
     # dir-source dannenberg 0232AF901C31A04EE9848595AF9BB7620D4C5B2E dannenberg.torauth.de 193.23.244.244 80 443
-    START_ITEM = Item('dir-source',
-                      parse_func=ItemParsers.split_symbol,
-                      parse_args=[' ', ['nickname', 'fingerprint', 'hostname', 'address', 'dir_port', 'or_port']])
+    START_ITEM = Item(
+        'dir-source',
+        parse_func=ItemParsers.split_symbol,
+        parse_args=[' ', ['nickname', 'fingerprint', 'hostname', 'address', 'dir_port', 'or_port']],
+    )
 
     ITEMS = [
         # "contact" SP string NL
         # [Exactly once.]
         # contact Andreas Lehner
         Item('contact'),
-
         # "vote-digest" SP digest NL
         # [Exactly once.]
         # vote-digest 8E4B75DC6EC0AB037A9D2C2C3EB46BBCDFDA17C4
-        Item('vote-digest')
+        Item('vote-digest'),
     ]
 
 
@@ -77,8 +79,13 @@ def _parse_r_line(line, *_):
     :return: dict with router info
     """
     split_line = line.split(' ')
-    return {'nickname': split_line[0], 'ip': split_line[5], 'dir_port': int(split_line[7]),
-            'tor_port': int(split_line[6]), '_fingerprint': split_line[1]}
+    return {
+        'nickname': split_line[0],
+        'ip': split_line[5],
+        'dir_port': int(split_line[7]),
+        'tor_port': int(split_line[6]),
+        '_fingerprint': split_line[1],
+    }
 
 
 @unique
@@ -177,38 +184,33 @@ class RouterObject(TorDocumentObject):
     # "r" SP nickname SP identity SP digest SP publication SP IP SP ORPort SP DirPort NL
     # [At start, exactly once.]
     # r seele AAoQ1DAR6kkoo19hBAX5K0QztNw HVuAXf9AUKcwgmwTP4DI6xHhmeI 2019-07-20 13:33:25 67.174.243.193 9001 0
-    START_ITEM = Item("r", parse_func=_parse_r_line)
+    START_ITEM = Item('r', parse_func=_parse_r_line)
 
     ITEMS = [
         # "a" SP address ":" port NL
         # [Any number]
         # ...
-        Item("a", type=ItemType.AnyNumber),
-
+        Item('a', type=ItemType.AnyNumber),
         # "s" SP Flags NL
         # [Exactly once.]
         # s Running Stable V2Dir Valid
-        ItemEnum("s", enum_cls=RouterFlags, out_name='flags'),
-
+        ItemEnum('s', enum_cls=RouterFlags, out_name='flags'),
         # "v" SP version NL
         # [At most once.]
         # v Tor 0.3.5.8
-        Item("v", out_name='version', type=ItemType.AtMostOnce),
-
+        Item('v', out_name='version', type=ItemType.AtMostOnce),
         # "pr" SP Entries NL
         # [At most once.]
         # pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 ...
-        Item("pr", type=ItemType.AtMostOnce),
-
+        Item('pr', type=ItemType.AtMostOnce),
         # "w" SP "Bandwidth=" INT [SP "Measured=" INT] [SP "Unmeasured=1"] NL
         # [At most once.]
         # w Bandwidth=5
-        Item("w", type=ItemType.AtMostOnce),
-
+        Item('w', type=ItemType.AtMostOnce),
         # "p" SP ("accept" / "reject") SP PortList NL
         # [At most once.]
         # p reject 1-65535
-        Item("p", type=ItemType.AtMostOnce),
+        Item('p', type=ItemType.AtMostOnce),
     ]
 
     def __init__(self):
@@ -256,7 +258,7 @@ class RouterObject(TorDocumentObject):
         url = self.descriptor_url(fingerprint)
         try:
             response = http_get(url)
-        except (ConnectionError, ) as e:
+        except (ConnectionError,) as e:
             logger.debug(e)
             raise Exception("Can't fetch descriptor from %s" % url)
 
@@ -281,101 +283,84 @@ class NetworkStatusDocument(TorDocument):
         # [Exactly once.]
         # vote-status consensus
         Item('vote-status'),
-
         # "consensus-method" SP Integer NL
         # [At most once for consensuses; does not occur in votes.]
         # [No extra arguments]
         # consensus-method 28
         ItemInt('consensus-method'),
-
         # "valid-after" SP YYYY-MM-DD SP HH:MM:SS NL
         # [Exactly once.]
         # valid-after 2019-07-20 21:00:00
         ItemDate('valid-after'),
-
         # "fresh-until" SP YYYY-MM-DD SP HH:MM:SS NL
         # [Exactly once.]
         # fresh-until 2019-07-20 22:00:00
         ItemDate('fresh-until'),
-
         # "valid-until" SP YYYY-MM-DD SP HH:MM:SS NL
         # [Exactly once.]
         # valid-until 2019-07-21 00:00:00
         ItemDate('valid-until'),
-
         # "voting-delay" SP VoteSeconds SP DistSeconds NL
         # [Exactly once.]
         # voting-delay 300 300
         Item('voting-delay'),
-
         # "client-versions" SP VersionList NL
         # [At most once.]
         # client-versions 0.2.9.16,0.2.9.17,0.3.5.7,0.3.5.8,0.4.0.5,0.4.0.6,0.4.1.2-alpha,0.4.1.3-alpha,0.4.1.4-rc
         Item('client-versions'),
-
         # "server-versions" SP VersionList NL
         # [At most once.]
         # server-versions 0.2.9.15,0.2.9.16,0.2.9.17,0.3.5.8,0.4.0.5,0.4.0.6,0.4.1.2-alpha,0.4.1.3-alpha,0.4.1.4-rc
         Item('server-versions'),
-
         # "package" SP PackageName SP Version SP URL SP DIGESTS NL
         # [Any number of times.]
         # Included in consensuses only for method 19 and later.
-
         # "known-flags" SP FlagList NL
         # [Exactly once.]
         # known-flags Authority BadExit Exit Fast Guard HSDir NoEdConsensus Running Stable StaleDesc V2Dir Valid
         Item('known-flags'),
-
         # "recommended-client-protocols" SP Entries NL
         # [At most once.]
         # recommended-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 ...
         Item('recommended-client-protocols'),
-
         # "recommended-relay-protocols" SP Entries NL
         # [At most once.]
         # recommended-relay-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 ...
         Item('recommended-relay-protocols'),
-
         # "required-client-protocols" SP Entries NL
         # [At most once.]
         # required-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 ...`
         Item('required-client-protocols'),
-
         # "required-relay-protocols" SP Entries NL
         # [At most once.]
         # required-relay-protocols Cons=1 Desc=1 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=3-4 ...
         Item('required-relay-protocols'),
-
         # "params" SP [Parameters] NL
         # [At most once]
         # params CircuitPriorityHalflifeMsec=30000 DoSCircuitCreationEnabled=1 DoSConnectionEnabled=1 ...
         Item('params'),
-
         # "shared-rand-previous-value" SP NumReveals SP Value NL
         # [At most once]
         # shared-rand-previous-value 9 ybFb42KVOFmJR/EMtjPJNJiTBDyiI0eefmebenN9EY0=
         Item('shared-rand-previous-value'),
-
         # "shared-rand-current-value" SP NumReveals SP Value NL
         # [At most once]
         # shared-rand-current-value 9 p4+CMGa6M7EhDqGNpofcJ2MeQ7f7qdF8QslK+AOnrQg=
         Item('shared-rand-current-value'),
-
         ItemObject(DirSourceObject, out_name='voters'),
-
         ItemObject(RouterObject, out_name='routers'),
-
         # "directory-signature" [SP Algorithm] SP identity SP signing-key-digest
         #         NL Signature
         ItemSignature('directory-signature'),
     ]
 
     def __init__(self, raw_string):
-        super().__init__(raw_string,
-                         digests_names=['sha1', 'sha3_256'],
-                         digest_start='network-status-version',
-                         digest_end='directory-signature ')
+        super().__init__(
+            raw_string,
+            digests_names=['sha1', 'sha3_256'],
+            digest_start='network-status-version',
+            digest_end='directory-signature ',
+        )
 
     def link_consensus(self, consensus):
         for router in self.routers:
@@ -399,7 +384,7 @@ class NetworkStatusDocument(TorDocument):
                 return sign
 
     def apply_diff(self, diff):
-        logger.info("Apply network-status-diff for %s to %s", self.digest_sha3_256.hex(), diff.to_digest.lower())
+        logger.info('Apply network-status-diff for %s to %s', self.digest_sha3_256.hex(), diff.to_digest.lower())
         assert self.digest_sha3_256.hex() == diff.from_digest.lower()
 
         lines = self.raw_string.split('\n')

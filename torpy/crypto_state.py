@@ -18,8 +18,15 @@ import logging
 
 from torpy.cells import RelayedTorCell
 from torpy.utils import to_hex
-from torpy.crypto_common import sha1_stream, sha1_stream_clone, sha1_stream_finalize, sha1_stream_update,\
-    aes_ctr_decryptor, aes_ctr_encryptor, aes_update
+from torpy.crypto_common import (
+    aes_update,
+    sha1_stream,
+    aes_ctr_decryptor,
+    aes_ctr_encryptor,
+    sha1_stream_clone,
+    sha1_stream_update,
+    sha1_stream_finalize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +67,9 @@ class CryptoState:
         if new_digest != digest:
             logger.error(
                 'received cell digest not equal ({!r} != {!r}); payload = {!r}'.format(
-                    to_hex(new_digest),
-                    to_hex(digest),
-                    to_hex(payload)))
+                    to_hex(new_digest), to_hex(digest), to_hex(payload)
+                )
+            )
             return False
 
         sha1_stream_update(self._backward_digest, payload)

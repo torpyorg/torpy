@@ -15,12 +15,12 @@
 
 import logging
 import functools
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
+from contextlib import contextmanager
 
 from torpy.guard import TorGuard
-from torpy.circuit import TorCircuit
 from torpy.utils import retry, log_retry
+from torpy.circuit import TorCircuit
 from torpy.consesus import TorConsensus
 from torpy.cache_storage import TorCacheDirStorage
 

@@ -63,8 +63,11 @@ class DocumentEncoder(json.JSONEncoder):
 
     def default(self, obj):
         if isinstance(obj, dict):
-            flt_dict = {key: value for (key, value) in obj.items() if
-                        key in DocumentEncoder._excludes or not key.startswith('_')}
+            flt_dict = {
+                key: value
+                for (key, value) in obj.items()
+                if key in DocumentEncoder._excludes or not key.startswith('_')
+            }
             return flt_dict
         elif isinstance(obj, bytes):
             return {'_bytes': obj.hex()}
@@ -105,24 +108,30 @@ def _compare(o, expected_fields):
 
 
 @pytest.mark.parametrize(
-    "network_status_raw,expected_fields,digest",
+    'network_status_raw,expected_fields,digest',
     [
         # Small simple example
-        (load_text('network_status/consensus'),
-         load_json('network_status/consensus.json'),
-         '270d2e02d8e6ad83dd87bd56cf8b7874f75063a9'),
+        (
+            load_text('network_status/consensus'),
+            load_json('network_status/consensus.json'),
+            '270d2e02d8e6ad83dd87bd56cf8b7874f75063a9',
+        ),
         # The same but with extra fields
-        (load_text('network_status/consensus_extra'),
-         load_json('network_status/consensus_extra.json'),
-         '38fd029621ca6d3bea5314d8d87c1b374c39a43e'),
+        (
+            load_text('network_status/consensus_extra'),
+            load_json('network_status/consensus_extra.json'),
+            '38fd029621ca6d3bea5314d8d87c1b374c39a43e',
+        ),
         # Real network status example
-        (load_text('network_status/consensus_real'),
-         load_json('network_status/consensus_real.json'),
-         '8f4a710a7228ee3ecda56a59a0232a7f8698f514')
+        (
+            load_text('network_status/consensus_real'),
+            load_json('network_status/consensus_real.json'),
+            '8f4a710a7228ee3ecda56a59a0232a7f8698f514',
+        ),
     ],
     ids=['consensus',
          'consensus_extra',
-         'consensus_real']
+         'consensus_real'],
 )
 def test_network_status_parse(network_status_raw, expected_fields, digest):
     doc = NetworkStatusDocument(network_status_raw)
@@ -139,11 +148,11 @@ def test_network_status_parse(network_status_raw, expected_fields, digest):
 
 
 @pytest.mark.parametrize(
-    "doc_raw, diff_raw",
+    'doc_raw, diff_raw',
     [
-        (load_text('network_status/consensus_real'), load_text('network_status_diff/network-status-diff')),
+        (load_text('network_status/consensus_real'), load_text('network_status_diff/network-status-diff'))
     ],
-    ids=['diff1']
+    ids=['diff1'],
 )
 def test_network_status_diff_parse(doc_raw, diff_raw):
     doc = NetworkStatusDocument(doc_raw)
@@ -153,9 +162,9 @@ def test_network_status_diff_parse(doc_raw, diff_raw):
 
 
 @pytest.mark.parametrize(
-    "doc_raw",
+    'doc_raw',
     [
-        (load_text('dir_certs/dir_cert_real')),
+        (load_text('dir_certs/dir_cert_real'))
     ],
     ids=['dir_certs']
 )

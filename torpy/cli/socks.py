@@ -83,13 +83,11 @@ class SocksServer(object):
         self.listen_socket.close()
         if exc_type:
             from traceback import format_exception
+
             logger.error(
                 '[socks] Exception in server:\n%s',
-                '\n'.join(
-                    format_exception(
-                        exc_type,
-                        exc_val,
-                        exc_tb)).rstrip('\r\n'))
+                '\n'.join(format_exception(exc_type, exc_val, exc_tb)).rstrip('\r\n'),
+            )
 
     def start(self):
         while True:
@@ -178,8 +176,7 @@ def main():
     register_logger(args.verbose)
 
     tor = TorClient()
-    with tor.create_circuit(args.hops) as circuit, \
-            SocksServer(circuit, args.ip, args.port) as socks_serv:
+    with tor.create_circuit(args.hops) as circuit, SocksServer(circuit, args.ip, args.port) as socks_serv:
         socks_serv.start()
 
 

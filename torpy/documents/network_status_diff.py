@@ -84,8 +84,9 @@ class ItemAction(ItemMask):
         return EdAction(start, end, action, data)
 
     def __init__(self, out_name):
-        super().__init__(r'(?P<start>\d+)(?:,(?P<end>\d+|\$))?(?P<action>[acd])', self._parse_action, out_name,
-                         as_list=True)
+        super().__init__(
+            r'(?P<start>\d+)(?:,(?P<end>\d+|\$))?(?P<action>[acd])', self._parse_action, out_name, as_list=True
+        )
 
 
 class NetworkStatusDiffDocument(TorDocument):
@@ -97,9 +98,8 @@ class NetworkStatusDiffDocument(TorDocument):
     ITEMS = [
         # The second line is "hash" SP FromDigest SP ToDigest NL
         Item('hash', parse_func=ItemParsers.split_symbol, parse_args=[' ', ['from_digest', 'to_digest']]),
-
         # Diff Actions
-        ItemAction(out_name='actions')
+        ItemAction(out_name='actions'),
     ]
 
     def __init__(self, raw_string):

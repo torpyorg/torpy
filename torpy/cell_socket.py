@@ -55,8 +55,7 @@ class TorCellSocket:
             raise Exception('Already connected')
 
         self._socket = ssl.wrap_socket(
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-            ssl_version=ssl.PROTOCOL_TLSv1_2
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1_2
         )
         logger.debug('Connecting socket to %s relay...', self._router)
         try:

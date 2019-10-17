@@ -21,11 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 class HSDescriptorParser:
-    regex = re.compile("""\
+    regex = re.compile(
+        """\
 introduction-points
 -----BEGIN MESSAGE-----
 (.+?)
------END MESSAGE-----""", flags=re.DOTALL | re.IGNORECASE)
+-----END MESSAGE-----""",
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
     @staticmethod
     def parse(data):
@@ -38,7 +41,8 @@ introduction-points
 
 
 class RouterDescriptorParser:
-    regex = re.compile(r"""\
+    regex = re.compile(
+        r"""\
 onion-key
 -----BEGIN RSA PUBLIC KEY-----
 (?P<onion_key>.+?)
@@ -48,7 +52,9 @@ signing-key
 (?P<signing_key>.+?)
 -----END RSA PUBLIC KEY-----
 .+?
-ntor-onion-key (?P<ntor_key>[^\n]+)""", flags=re.DOTALL | re.IGNORECASE)
+ntor-onion-key (?P<ntor_key>[^\n]+)""",
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
     @staticmethod
     def parse(data):
@@ -61,7 +67,8 @@ ntor-onion-key (?P<ntor_key>[^\n]+)""", flags=re.DOTALL | re.IGNORECASE)
 
 
 class IntroPointParser:
-    regex = re.compile(r"""\
+    regex = re.compile(
+        r"""\
 introduction-point (?P<introduction_point>[^\n]+)
 ip-address (?P<ip_address>[^\n]+)
 onion-port (?P<port>[0-9]+)
@@ -72,7 +79,9 @@ onion-key
 service-key
 -----BEGIN RSA PUBLIC KEY-----
 (?P<service_key>.+?)
------END RSA PUBLIC KEY-----""", flags=re.DOTALL | re.IGNORECASE)
+-----END RSA PUBLIC KEY-----""",
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
     @staticmethod
     def _decode(d):

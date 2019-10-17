@@ -16,13 +16,29 @@
 import socket
 import logging
 import threading
+from selectors import EVENT_READ, EVENT_WRITE, DefaultSelector
 from contextlib import contextmanager
-from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 
-from torpy.cells import CellRelayTruncated, CellRelayEnd, CellRelayData, CellRelaySendMe, CellRelayConnected, \
-    CellDestroy, CircuitReason, CellCreate2, CellCreated2, RelayedTorCell, CellRelay, CellRelayExtend2, \
-    CellRelayExtended2, CellRelayEarly, CellRelayEstablishRendezvous, CellRelayRendezvousEstablished, \
-    CellRelayIntroduce1, CellRelayIntroduceAck
+from torpy.cells import (
+    CellRelay,
+    CellCreate2,
+    CellDestroy,
+    CellCreated2,
+    CellRelayEnd,
+    CellRelayData,
+    CircuitReason,
+    CellRelayEarly,
+    RelayedTorCell,
+    CellRelaySendMe,
+    CellRelayExtend2,
+    CellRelayConnected,
+    CellRelayExtended2,
+    CellRelayTruncated,
+    CellRelayIntroduce1,
+    CellRelayIntroduceAck,
+    CellRelayEstablishRendezvous,
+    CellRelayRendezvousEstablished,
+)
 from torpy.utils import ignore
 from torpy.stream import TorStream, TorWindow, StreamsManager
 from torpy.crypto_state import CryptoState
@@ -142,6 +158,7 @@ class TorReceiver(threading.Thread):
         self._handler_mgr = handler_mgr
         self._do_loop = False
 
+        # fmt: off
         self._regs_funcs_map = {
             'reg': {
                 socket.socket: self.register_socket,
@@ -152,6 +169,7 @@ class TorReceiver(threading.Thread):
                 TorStream: self.unregister_stream
             }
         }
+        # fmt: on
         self._stream_to_callback = {}
         self._selector = DefaultSelector()
 
@@ -217,10 +235,10 @@ class TorReceiver(threading.Thread):
             try:
                 self._handler_mgr.handle(cell)
             except BaseException:
-                logger.exception("Some handle errors")
+                logger.exception('Some handle errors')
 
     def run(self):
-        logger.debug("Starting...")
+        logger.debug('Starting...')
         while self._do_loop:
             events = self._selector.select()
             for key, mask in events:
@@ -228,7 +246,7 @@ class TorReceiver(threading.Thread):
                 callback(key.fileobj, mask)
 
         self._cleanup()
-        logger.debug("Stopped...")
+        logger.debug('Stopped...')
 
 
 class TorCircuitState:
@@ -272,7 +290,7 @@ class CellHandlerManager:
 
     @contextmanager
     def create_waiter(self, cell_types):
-        logger.debug("Create waiter for %r", cells_format(cell_types))
+        logger.debug('Create waiter for %r', cells_format(cell_types))
         w = Waiter(cell_types)
         self.subscribe_for(cell_types, w)
         yield w
@@ -351,8 +369,9 @@ class TorCircuit:
             self._state = TorCircuitState.Connected
             self._guard = guard
             self._handler_mgr.subscribe_for(CellRelayTruncated, self._on_truncated)
-            self._handler_mgr.subscribe_for([CellRelayData, CellRelaySendMe, CellRelayConnected, CellRelayEnd],
-                                            self._on_stream)
+            self._handler_mgr.subscribe_for(
+                [CellRelayData, CellRelaySendMe, CellRelayConnected, CellRelayEnd], self._on_stream
+            )
             logger.debug('Circuit created')
 
     def create_new_circuit(self, hops_count=0):
@@ -480,7 +499,7 @@ class TorCircuit:
 
         from_node = None
         for i, circuit_node in enumerate(self._circuit_nodes):
-            logger.debug("Decrypting by [%i] %s...", i, circuit_node.router)
+            logger.debug('Decrypting by [%i] %s...', i, circuit_node.router)
             if not relay_cell.is_encrypted:
                 logger.warning('Decrypted earlier')
                 break
@@ -536,15 +555,16 @@ class TorCircuit:
         extend_node = CircuitNode(next_onion_router, handshake_type)
         skin = extend_node.create_onion_skin()
 
-        inner_cell = CellRelayExtend2(next_onion_router.ip, next_onion_router.tor_port,
-                                      next_onion_router.fingerprint, skin)
+        inner_cell = CellRelayExtend2(
+            next_onion_router.ip, next_onion_router.tor_port, next_onion_router.fingerprint, skin
+        )
 
-        recv_cell = self._send_relay_wait(inner_cell,
-                                          [CellRelayExtended2, CellRelayTruncated],
-                                          relay_type=CellRelayEarly)
+        recv_cell = self._send_relay_wait(
+            inner_cell, [CellRelayExtended2, CellRelayTruncated], relay_type=CellRelayEarly
+        )
 
         if isinstance(recv_cell, CellRelayTruncated):
-            raise CircuitExtendError("Extend error {}".format(recv_cell.reason.name))
+            raise CircuitExtendError('Extend error {}'.format(recv_cell.reason.name))
 
         logger.debug('Verifying response...')
         extend_node.complete_handshake(recv_cell.handshake_data)
@@ -595,20 +615,21 @@ class TorCircuit:
         extend_node = CircuitNode(introduction_point, handshake_type=TorHandshakeType.TAP)
         public_key_bytes = extend_node.key_agreement.public_key_bytes
 
-        inner_cell = CellRelayIntroduce1(introduction_point, public_key_bytes,
-                                         introducee, rendezvous_cookie, auth_type, descriptor_cookie, self._id)
+        inner_cell = CellRelayIntroduce1(
+            introduction_point, public_key_bytes, introducee, rendezvous_cookie, auth_type, descriptor_cookie, self._id
+        )
         cell_ack = self._send_relay_wait(inner_cell, CellRelayIntroduceAck)
         logger.info('Introduced (%r)', cell_ack)
 
         return extend_node
 
     def extend_to_hidden(self, hidden_service):
-        logger.info("Extending #%x circuit for hidden service %s...", self.id, hidden_service.hostname)
+        logger.info('Extending #%x circuit for hidden service %s...', self.id, hidden_service.hostname)
 
         with self._extend_lock:
             if self._associated_hs:
                 if self._associated_hs.onion == hidden_service.onion:
-                    logger.debug("Circuit #%x already associated with %s", self.id, hidden_service.onion)
+                    logger.debug('Circuit #%x already associated with %s', self.id, hidden_service.onion)
                     return
                 raise Exception("It's not possible associate one circuit to more then one hidden service")
 
@@ -619,10 +640,10 @@ class TorCircuit:
             # keeping replicas of a descriptor
             connector = HiddenServiceConnector(self, self._consensus)
 
-            logger.info("Iterate over responsible dirs of the hidden service")
+            logger.info('Iterate over responsible dirs of the hidden service')
             for responsible_dir in connector.get_responsibles_dir(hidden_service):
-                with ignore("Retry with next responsible dir", exceptions=(DescriptorNotAvailable,)):
-                    logger.info("Iterate over introduction points of the hidden service")
+                with ignore('Retry with next responsible dir', exceptions=(DescriptorNotAvailable,)):
+                    logger.info('Iterate over introduction points of the hidden service')
                     for introduction in responsible_dir.get_introductions(hidden_service):
                         try:
                             # And finally try to agree to rendezvous with the hidden service

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def main():
     parser = ArgumentParser()
     parser.add_argument('--url', help='url', required=True)
-    parser.add_argument('--method', default="GET", type=str.upper, help='http method')
+    parser.add_argument('--method', default='GET', type=str.upper, help='http method')
     parser.add_argument('--data', default=None, help='http data')
     parser.add_argument('--hops', default=3, help='hops count', type=int)
     parser.add_argument('--to-file', default=None, help='save result to file')
@@ -42,13 +42,13 @@ def main():
     with tor_requests_session(args.hops, args.headers, args.auth_data) as s:
         request = Request(args.method, args.url, data=args.data)
 
-        logger.warning("Sending: %s %s", request.method, request.url)
+        logger.warning('Sending: %s %s', request.method, request.url)
         response = s.send(request.prepare())
 
-        logger.warning("Response status: %r", response.status_code)
+        logger.warning('Response status: %r', response.status_code)
         if args.to_file:
-            logger.info("Writing to file %s", args.to_file)
-            with open(args.to_file, "w+") as f:
+            logger.info('Writing to file %s', args.to_file)
+            with open(args.to_file, 'w+') as f:
                 f.write(response.text)
         else:
             logger.warning(textwrap.indent(response.text, '> ', lambda line: True))

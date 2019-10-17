@@ -30,7 +30,7 @@ from torpy.hiddenservice import HiddenService
 from torpy.http.requests import TorRequests, tor_requests_session
 
 logging.getLogger('requests').setLevel(logging.CRITICAL)
-logging.basicConfig(format="[%(asctime)s] [%(threadName)-16s] %(message)s", level=logging.DEBUG)
+logging.basicConfig(format='[%(asctime)s] [%(threadName)-16s] %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -83,10 +83,10 @@ def test_adapter():
             r = s.get('https://google.com', timeout=30)
             logger.warning(r)
             logger.warning(r.text)
-            assert r.text.rstrip().endswith("</html>")
+            assert r.text.rstrip().endswith('</html>')
 
             r = s.get('https://stackoverflow.com/questions/tagged/python')
-            assert r.text.rstrip().endswith("</html>")
+            assert r.text.rstrip().endswith('</html>')
             logger.warning(r)
             logger.warning(r.text)
 
@@ -99,20 +99,22 @@ def test_multi_threaded():
             'https://httpbin.org/headers',
             'https://google.com',
             'https://ifconfig.me',
-            'http://facebookcorewwwi.onion']
+            'http://facebookcorewwwi.onion',
+        ]
         if HS_BASIC_HOST:
             links.append('http://' + HS_BASIC_HOST)
         links = links * 10
 
         with tor_requests.get_session() as sess:
+
             def process(link):
                 try:
-                    logger.debug("get link: %s", link)
+                    logger.debug('get link: %s', link)
                     r = sess.get(link, timeout=30)
-                    logger.warning("get link %s finish: %s", link, r)
+                    logger.warning('get link %s finish: %s', link, r)
                     return r
                 except BaseException:
-                    logger.exception("get link %s error", link)
+                    logger.exception('get link %s error', link)
 
             pool = ThreadPool(10)
             for i, w in enumerate(pool._pool):
@@ -120,13 +122,13 @@ def test_multi_threaded():
             results = pool.map(process, links)
             pool.close()
             pool.join()
-    logger.debug("test_multi_threaded ends: %r", results)
+    logger.debug('test_multi_threaded ends: %r', results)
 
 
 def test_basic_auth():
     """Connecting to Hidden Service with 'Basic' authorization."""
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
-        logger.warning("Skip test_basic_auth()")
+        logger.warning('Skip test_basic_auth()')
         return
 
     hs = HiddenService(HS_BASIC_HOST, HS_BASIC_AUTH, AuthType.Basic)
@@ -144,7 +146,7 @@ def test_basic_auth():
 def test_stealth_auth():
     """Connecting to Hidden Service with 'Stealth' authorization."""
     if not HS_STEALTH_HOST or not HS_STEALTH_AUTH:
-        logger.warning("Skip test_stealth_auth()")
+        logger.warning('Skip test_stealth_auth()')
         return
 
     hs = HiddenService(HS_STEALTH_HOST, HS_STEALTH_AUTH, AuthType.Stealth)
@@ -162,7 +164,7 @@ def test_stealth_auth():
 def test_basic_auth_pre():
     """Using pre-defined authorization data for making HTTP requests."""
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
-        logger.warning("Skip test_basic_auth()")
+        logger.warning('Skip test_basic_auth()')
         return
 
     hidden_service = HS_BASIC_HOST
@@ -181,7 +183,7 @@ def test_basic_auth_pre():
 def test_requests_hidden():
     """Using pre-defined authorization data for making HTTP requests by tor_requests_session."""
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
-        logger.warning("Skip test_requests_hidden()")
+        logger.warning('Skip test_requests_hidden()')
         return
 
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)}
@@ -204,11 +206,11 @@ def test_select():
         def recv_callback(sock_or_stream, mask):
             kind = type(sock_or_stream)
             data = sock_or_stream.recv(1024)
-            logger.info("%s: %r", kind.__name__, data.decode())
+            logger.info('%s: %r', kind.__name__, data.decode())
             if data:
                 events[kind]['data'].set()
             else:
-                logger.debug("closing")
+                logger.debug('closing')
                 guard.unregister(sock_or_stream)
                 events[kind]['close'].set()
 

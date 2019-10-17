@@ -15,8 +15,8 @@
 
 import os
 import sys
-import zlib
 import gzip
+import zlib
 import logging
 import threading
 import contextlib
@@ -77,18 +77,24 @@ def retry(times, exceptions, log_func=None):
                         del exc_info
                     else:
                         logger.info(
-                            'Exception thrown when attempting to run %s, attempt %d of %d', func, attempts, times,
-                            exc_info=True)
+                            'Exception thrown when attempting to run %s, attempt %d of %d',
+                            func,
+                            attempts,
+                            times,
+                            exc_info=True,
+                        )
                     attempts -= 1
                     if not attempts:
                         raise
+
         return newfn
+
     return decorator
 
 
 @contextlib.contextmanager
 def ignore(comment, exceptions=None, log_func=None):
-    exceptions = exceptions or (Exception, )
+    exceptions = exceptions or (Exception,)
     try:
         yield
     except exceptions:
@@ -156,13 +162,13 @@ class AuthType:
 
 def user_data_dir(app_name):
     """Return full path to the user-specific data dir for this application."""
-    if sys.platform == "win32":
+    if sys.platform == 'win32':
         app_name = os.path.join(app_name, app_name)  # app_author + app_name
         path = os.path.expandvars(r'%APPDATA%')
     elif sys.platform == 'darwin':
         path = os.path.expanduser('~/Library/Application Support/')
     else:
-        path = os.getenv('XDG_DATA_HOME', os.path.expanduser("~/.local/share"))
+        path = os.getenv('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
     return os.path.join(path, app_name)
 
 

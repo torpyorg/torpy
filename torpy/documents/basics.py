@@ -25,7 +25,7 @@ class TorDocumentObject:
 
     def __init__(self, check_start=False):
         if self.START_ITEM is None or self.ITEMS is None:
-            raise Exception("You must fill items for this object")
+            raise Exception('You must fill items for this object')
         self._check_start = check_start
 
     @classmethod
@@ -122,7 +122,7 @@ class TorDocument(TorDocumentObject):
     def check_items(self, line, lines):
         t = line.split(' ', 1)
         if len(t) < 2:
-            kw, rest = t[0], ""
+            kw, rest = t[0], ''
         else:
             kw, rest = t
 
@@ -133,7 +133,8 @@ class TorDocument(TorDocumentObject):
                 if self._check_start:
                     if not st:
                         raise Exception(
-                            f'"{self.DOCUMENT_NAME}" document must start with "{self.START_ITEM.keyword} " item')
+                            f'"{self.DOCUMENT_NAME}" document must start with "{self.START_ITEM.keyword} " item'
+                        )
                     else:
                         self._check_start = False
 

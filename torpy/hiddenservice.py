@@ -14,9 +14,9 @@
 #
 
 import os
-import logging
 import time
 import struct
+import logging
 from base64 import b32decode, b32encode, b64decode
 from typing import TYPE_CHECKING
 
@@ -24,7 +24,7 @@ from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
 from torpy.http.client import HttpClient
-from torpy.crypto_common import sha1, aes_ctr_decryptor, aes_update
+from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor
 
 if TYPE_CHECKING:
     from torpy.circuit import TorCircuit
@@ -133,8 +133,10 @@ class EncPointsBuffer:
         self._crypted_data = crypted_data
         assert len(crypted_data) > 2, 'Size of crypted data too small'
         self._auth_type = int(crypted_data[0])
+        # fmt: off
         self._auth_to_func = {AuthType.Basic: self._decrypt_basic,
                               AuthType.Stealth: self._decrypt_stealth}
+        # fmt: on
 
     @property
     def auth_type(self):
@@ -201,7 +203,7 @@ class ResponsibleDir:
     def _fetch_descriptor(self, descriptor_id):
         # tor ref: rend_client_fetch_v2_desc
 
-        logger.info("Create circuit for hsdir")
+        logger.info('Create circuit for hsdir')
         with self._circuit.create_new_circuit() as directory_circuit:
             directory_circuit.extend(self._router)
             assert directory_circuit.nodes_count == 2
@@ -270,10 +272,12 @@ class IntroductionPoint:
                 assert intro_circuit.nodes_count == 2
 
                 # Send Introduce1
-                extend_node = intro_circuit._rendezvous_introduce(self._circuit,
-                                                                  hidden_service.rendezvous_cookie,
-                                                                  hidden_service.auth_type,
-                                                                  hidden_service.descriptor_cookie)
+                extend_node = intro_circuit._rendezvous_introduce(
+                    self._circuit,
+                    hidden_service.rendezvous_cookie,
+                    hidden_service.auth_type,
+                    hidden_service.descriptor_cookie,
+                )
 
                 rendezvous2_cell = w.get(timeout=10)
                 extend_node.complete_handshake(rendezvous2_cell.handshake_data)
