@@ -37,12 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 class TorWindow:
-    def __init__(self):
+    def __init__(self, start=1000, increment=100):
         self._lock = threading.Lock()
-        self._start = 1000
-        self._package = self._start
-        self._deliver = self._start
-        self._increment = 100
+        self._deliver = self._package = self._start = start
+        self._increment = increment
 
     def need_sendme(self):
         with self._lock:
@@ -139,7 +137,7 @@ class TorStream:
         self._state = StreamState.Closed
         self._close_lock = threading.Lock()
 
-        self._window = TorWindow()
+        self._window = TorWindow(start=500, increment=50)
 
         self._loop = None
 
