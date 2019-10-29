@@ -41,7 +41,7 @@ setup(
     keywords='python proxy anonymity privacy socks tor protocol onion hiddenservice',
     packages=find_packages(exclude=['tests']),
     python_requires='>=3.6',
-    install_requires=['cryptography>2.4.2,!=2.6', 'requests>=2.8.0,<2.12.0'],
+    install_requires=['cryptography>2.4.2,!=2.6', 'requests>=2.8.0,<2.21.0'],
     entry_points={'console_scripts': ['torpy_cli=torpy.cli.console:main',
                                       'torpy_socks=torpy.cli.socks:main']
                   },
