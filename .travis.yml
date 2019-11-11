@@ -4,12 +4,10 @@ python:
   - "3.6"
   - "3.7"
   - "3.8"
+sudo: false
 install:
-  - pip install coveralls
-  - pip install -r requirements.txt -r requirements-test.txt -r requirements-flake8.txt
-before_script:
-  - flake8 torpy tests setup.py
+  - pip install tox-travis coveralls
 script:
-  - py.test -xv --cov torpy tests
+  - tox -v
 after_success:
   - coveralls

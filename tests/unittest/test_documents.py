@@ -140,8 +140,10 @@ def test_network_status_parse(network_status_raw, expected_fields, digest):
     if digest:
         assert doc.get_digest('sha1').hex() == digest
 
-    with open(digest + '.json', 'w+') as f:
+    filename = digest + '.json'
+    with open(filename, 'w+') as f:
         json.dump(doc, f, cls=DocumentEncoder, indent=4)
+    os.remove(filename)
 
     if expected_fields:
         _compare(doc, expected_fields)
