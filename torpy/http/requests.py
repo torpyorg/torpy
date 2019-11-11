@@ -13,18 +13,21 @@
 # limitations under the License.
 #
 
+import logging
 from contextlib import contextmanager
 
-import requests
+from requests import Request, Session
 
 from torpy.client import TorClient
 from torpy.http.adapter import TorHttpAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class TorRequests:
     def __init__(self, hops_count=3, headers=None, auth_data=None):
         self._hops_count = hops_count
-        self._headers = dict(headers) if headers else {'User-Agent': 'Mozilla/5.0'}
+        self._headers = dict(headers) if headers else {}
         self._auth_data = dict(auth_data) if auth_data else auth_data
 
     def __enter__(self):
@@ -39,13 +42,13 @@ class TorRequests:
 
     def send(self, method, url, data=None, **kwargs):
         with self.get_session() as s:
-            r = requests.Request(method, url, data, **kwargs)
+            r = Request(method, url, data, **kwargs)
             return s.send(r.prepare())
 
     @contextmanager
     def get_session(self):
         adapter = TorHttpAdapter(self._guard, self._hops_count)
-        with requests.Session() as s:
+        with Session() as s:
             s.headers.update(self._headers)
             s.mount('http://', adapter)
             s.mount('https://', adapter)
@@ -57,3 +60,13 @@ def tor_requests_session(hops_count=3, headers=None, auth_data=None):
     with TorRequests(hops_count, headers, auth_data) as tr:
         with tr.get_session() as s:
             yield s
+
+
+def do_request(url, method='get', data=None, headers=None, hops=3, auth_data=None, verbose=0):
+    with tor_requests_session(hops, auth_data) as s:
+        request = Request(method, url, data=data, headers=dict(headers or []))
+
+        logger.warning('Sending: %s %s', request.method, request.url)
+        response = s.send(request.prepare())
+        logger.warning('Response status: %r', response.status_code)
+        return response.text

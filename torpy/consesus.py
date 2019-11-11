@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import socket
 import random
 import logging
 import functools
@@ -23,7 +24,7 @@ from torpy.utils import retry, http_get, log_retry
 from torpy.documents import TorDocumentsFactory
 from torpy.cache_storage import TorCacheDirStorage
 from torpy.crypto_common import rsa_verify, rsa_load_der
-from torpy.documents.network_status import RouterFlags, NetworkStatusDocument
+from torpy.documents.network_status import RouterFlags, NetworkStatusDocument, FetchDescriptorError
 from torpy.documents.dir_key_certificate import DirKeyCertificate
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 
@@ -66,7 +67,7 @@ class DirectoryAuthority:
         """
         # doc_type: consensus, consensus-microdesc, authority?
         headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers, timeout=30)
+        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers)
 
     # TODO: move to Router and inherit DirectoryAuthority from (Router)
     @property
@@ -148,7 +149,8 @@ class TorConsensus:
         self.renew()
         return self._document
 
-    @retry(3, Exception, log_func=functools.partial(log_retry, msg='Retry with another authority...'))
+    @retry(3, BaseException,
+           log_func=functools.partial(log_retry, msg='Retry with another authority...', no_traceback=(socket.timeout,)))
     def renew(self, force=False):
         with self._lock:
             if not force and self._document and self._document.is_fresh:
@@ -257,7 +259,9 @@ class TorConsensus:
         flags = [RouterFlags.HSDir]
         return self.get_routers(flags, has_dir_port=True)
 
-    @retry(5, BaseException, log_func=functools.partial(log_retry, msg='Retry with another router...'))
+    @retry(5, BaseException,
+           log_func=functools.partial(log_retry, msg='Retry with another router...',
+                                      no_traceback=(FetchDescriptorError, )))
     def get_descriptor(self, fingerprint):
         """
         Get router descriptor by its fingerprint through randomly selected router.

@@ -27,7 +27,8 @@ from torpy.stream import TorStream
 from torpy.utils import AuthType, recv_all
 from torpy.http.adapter import TorHttpAdapter
 from torpy.hiddenservice import HiddenService
-from torpy.http.requests import TorRequests, tor_requests_session
+from torpy.http.requests import TorRequests, tor_requests_session, do_request as requests_request
+from torpy.http.urlopener import do_request as urllib_request
 
 logging.getLogger('requests').setLevel(logging.CRITICAL)
 logging.basicConfig(format='[%(asctime)s] [%(threadName)-16s] %(message)s', level=logging.DEBUG)
@@ -70,7 +71,17 @@ def test_onion_raw():
             assert 'StickyNotes' in recv, 'wrong data received'
 
 
-def test_adapter():
+def test_requests_no_agent():
+    data = requests_request('https://httpbin.org/headers')
+    assert 'User-Agent' not in data
+
+
+def test_requests():
+    data = requests_request('https://httpbin.org/headers', headers={'User-Agent': 'Mozilla/5.0'})
+    assert 'Mozilla' in data
+
+
+def test_requests_session():
     tor = TorClient()
     with tor.get_guard() as guard:
         adapter = TorHttpAdapter(guard, 3)
@@ -89,6 +100,16 @@ def test_adapter():
             assert r.text.rstrip().endswith('</html>')
             logger.warning(r)
             logger.warning(r.text)
+
+
+def test_urlopener_no_agent():
+    data = urllib_request('https://httpbin.org/headers')
+    assert 'User-Agent' not in data
+
+
+def test_urlopener():
+    data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')])
+    assert 'Mozilla' in data
 
 
 def test_multi_threaded():

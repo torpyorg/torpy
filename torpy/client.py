@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import socket
 import logging
 import functools
 from typing import TYPE_CHECKING
@@ -21,6 +22,7 @@ from contextlib import contextmanager
 from torpy.guard import TorGuard
 from torpy.utils import retry, log_retry
 from torpy.circuit import TorCircuit
+from torpy.cell_socket import TorSocketConnectError
 from torpy.consesus import TorConsensus
 from torpy.cache_storage import TorCacheDirStorage
 
@@ -42,7 +44,10 @@ class TorClient:
         consensus = TorConsensus(authorities=authorities, cache_storage=cache_class(**cache_kwargs))
         return cls(consensus, auth_data)
 
-    @retry(3, Exception, log_func=functools.partial(log_retry, msg='Retry with another guard...'))
+    @retry(3, BaseException, log_func=functools.partial(log_retry,
+                                                        msg='Retry with another guard...',
+                                                        no_traceback=(socket.timeout, TorSocketConnectError,))
+           )
     def get_guard(self, by_flags=None):
         # TODO: add another stuff to filter guards
         guard_router = self._consensus.get_random_guard_node(by_flags)

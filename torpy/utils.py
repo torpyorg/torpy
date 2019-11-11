@@ -26,12 +26,15 @@ from urllib import request
 logger = logging.getLogger(__name__)
 
 
-def register_logger(verbose):
+def register_logger(verbose, log_file=None):
     fmt = '[%(asctime)s] [%(threadName)-16s] %(message)s' if verbose else '%(message)s'
     lvl = logging.DEBUG if verbose else logging.INFO
     if not verbose:
         logging.getLogger('requests').setLevel(logging.CRITICAL)
-    logging.basicConfig(format=fmt, level=lvl)
+    handlers = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+    logging.basicConfig(format=fmt, level=lvl, handlers=handlers)
 
 
 def to_hex(b):
@@ -58,9 +61,12 @@ class cached_property:  # noqa: N801
             return value
 
 
-def log_retry(exc_info, msg):
-    logger.error(exc_info[1])
-    logger.info(msg)
+def log_retry(exc_info, msg, no_traceback=None):
+    if no_traceback is not None and exc_info[0] not in no_traceback:
+        logging.error('[ignored]', exc_info=exc_info[1])
+    else:
+        logger.error('[ignored] %s.%s: %s', exc_info[0].__module__, exc_info[0].__qualname__, str(exc_info[1]))
+    logger.warning(msg)
 
 
 def retry(times, exceptions, log_func=None):
@@ -73,8 +79,10 @@ def retry(times, exceptions, log_func=None):
                 except exceptions:
                     if log_func:
                         exc_info = sys.exc_info()
-                        log_func(exc_info)
-                        del exc_info
+                        try:
+                            log_func(exc_info)
+                        finally:
+                            del exc_info
                     else:
                         logger.info(
                             'Exception thrown when attempting to run %s, attempt %d of %d',

@@ -456,7 +456,8 @@ class TorCircuit:
 
         stream = self._stream_manager.get_by_id(orig_cell.stream_id)
         if not stream:
-            logger.warning('Stream #%i is already closed or was never opened', orig_cell.stream_id)
+            logger.warning('Stream #%i is already closed or was never opened (but received %s)', orig_cell.stream_id,
+                           orig_cell)
             return
 
         stream.handle_cell(cell)
@@ -651,6 +652,9 @@ class TorCircuit:
                             self._circuit_nodes.append(extend_node)
                             self._associated_hs = hidden_service
                             return
+                        except CellTimeoutError as e:
+                            logger.error(str(e))
+                            continue
                         except BaseException:
                             logger.exception('Some errors')
                             continue

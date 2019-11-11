@@ -14,9 +14,11 @@
 #
 
 import logging
+import socket
 from datetime import datetime
 from enum import unique, Enum, auto
 from base64 import b16encode
+from urllib.error import URLError, HTTPError
 
 from torpy.documents.basics import TorDocumentObject, TorDocument
 from torpy.documents.items import ItemType, ItemParsers, Item, ItemObject, ItemDate, ItemInt, ItemEnum, ItemMulti
@@ -25,6 +27,10 @@ from torpy.utils import cached_property, http_get
 from torpy.parsers import RouterDescriptorParser
 
 logger = logging.getLogger(__name__)
+
+
+class FetchDescriptorError(Exception):
+    ...
 
 
 class ItemSignature(ItemMulti):
@@ -258,9 +264,9 @@ class RouterObject(TorDocumentObject):
         url = self.descriptor_url(fingerprint)
         try:
             response = http_get(url)
-        except (ConnectionError,) as e:
+        except (ConnectionError, socket.timeout, HTTPError, URLError) as e:
             logger.debug(e)
-            raise Exception("Can't fetch descriptor from %s" % url)
+            raise FetchDescriptorError("Can't fetch descriptor from %s" % url)
 
         descriptor_info = RouterDescriptorParser.parse(response)
         return Descriptor(**descriptor_info)

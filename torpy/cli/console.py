@@ -17,12 +17,23 @@ import logging
 import textwrap
 from argparse import ArgumentParser
 
-from requests import Request
-
 from torpy.utils import register_logger
-from torpy.http.requests import tor_requests_session
+from torpy.http.urlopener import do_request as urllib_request
+try:
+    from torpy.http.requests import do_request as requests_request
+except ImportError:
+    requests_request = None
 
 logger = logging.getLogger(__name__)
+
+
+def print_data(data, to_file=None):
+    if to_file:
+        logger.info('Writing to file %s', to_file)
+        with open(to_file, 'w+') as f:
+            f.write(data)
+    else:
+        logger.warning(textwrap.indent(data, '> ', lambda line: True))
 
 
 def main():
@@ -32,26 +43,22 @@ def main():
     parser.add_argument('--data', default=None, help='http data')
     parser.add_argument('--hops', default=3, help='hops count', type=int)
     parser.add_argument('--to-file', default=None, help='save result to file')
-    parser.add_argument('--header', dest='headers', nargs=2, action='append', help='set some http header')
+    parser.add_argument('--header', default=None, dest='headers', nargs=2, action='append', help='set some http header')
     parser.add_argument('--auth-data', nargs=2, action='append', help='set auth data for hidden service authorization')
-    parser.add_argument('-v', '--verbose', help='enable verbose output', action='store_true')
+    parser.add_argument('--log-file', default=None, help='log file path')
+    parser.add_argument('--requests-lib', dest='request_func', default=urllib_request, action='store_const',
+                        const=requests_request, help='use requests library for making requests')
+    parser.add_argument('-v', '--verbose', default=0, help='enable verbose output', action='count')
     args = parser.parse_args()
 
-    register_logger(args.verbose)
+    register_logger(args.verbose, log_file=args.log_file)
 
-    with tor_requests_session(args.hops, args.headers, args.auth_data) as s:
-        request = Request(args.method, args.url, data=args.data)
+    if not args.request_func:
+        raise Exception('Requests library not installed, use default urllib')
 
-        logger.warning('Sending: %s %s', request.method, request.url)
-        response = s.send(request.prepare())
-
-        logger.warning('Response status: %r', response.status_code)
-        if args.to_file:
-            logger.info('Writing to file %s', args.to_file)
-            with open(args.to_file, 'w+') as f:
-                f.write(response.text)
-        else:
-            logger.warning(textwrap.indent(response.text, '> ', lambda line: True))
+    data = args.request_func(args.url, method=args.method, data=args.data, headers=args.headers, hops=args.hops,
+                             auth_data=args.auth_data, verbose=args.verbose)
+    print_data(data, args.to_file)
 
 
 if __name__ == '__main__':

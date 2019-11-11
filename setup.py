@@ -25,7 +25,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='torpy',
-    version='1.0.8',
+    version='1.0.9',
     description='Pure python tor protocol implementation',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -41,7 +41,8 @@ setup(
     keywords='python proxy anonymity privacy socks tor protocol onion hiddenservice',
     packages=find_packages(exclude=['tests']),
     python_requires='>=3.6',
-    install_requires=['cryptography>2.4.2,!=2.6', 'requests>=2.8.0,<2.12.0'],
+    install_requires=['cryptography>2.4.2,!=2.6'],
+    extras_require={'requests': 'requests>=2.8.0,<2.12.0'},
     entry_points={'console_scripts': ['torpy_cli=torpy.cli.console:main',
                                       'torpy_socks=torpy.cli.socks:main']
                   },

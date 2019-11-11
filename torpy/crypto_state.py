@@ -65,7 +65,7 @@ class CryptoState:
         sha1_stream_update(digest_clone, payload)
         new_digest = sha1_stream_finalize(digest_clone)[:4]
         if new_digest != digest:
-            logger.error(
+            logger.debug(
                 'received cell digest not equal ({!r} != {!r}); payload = {!r}'.format(
                     to_hex(new_digest), to_hex(digest), to_hex(payload)
                 )

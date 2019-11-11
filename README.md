@@ -8,7 +8,8 @@ Torpy can be used to communicate with clearnet hosts or hidden services through 
 - No Stem or official Tor client required
 - Support v2 hidden services ([v2 specification](https://gitweb.torproject.org/torspec.git/tree/rend-spec-v2.txt))
 - Support *Basic* and *Stealth* authorization protocol
-- Provide simple TorHttpAdapter for [requests](https://requests.readthedocs.io/) library
+- Provide simple [TorHttpAdapter](https://github.com/torpyorg/torpy/blob/master/torpy/http/adapter.py) for [requests](https://requests.readthedocs.io/) library
+- Provide simple urllib [tor_opener](https://github.com/torpyorg/torpy/blob/master/torpy/http/urlopener.py) for making requests without any dependencies
 - Provide simple Socks5 proxy
 
 **Note:** This product is produced independently from the Tor® anonymity software and carries no guarantee from [The Tor Project](https://www.torproject.org/) about quality, suitability or anything else.
@@ -127,8 +128,9 @@ For more examples see [test_integration.py](https://github.com/torpyorg/torpy/bl
 
 Installation
 ------------
-* `pip3 install torpy`
-
+* Just `pip3 install torpy`
+* Or for using TorHttpAdapter with requests library you need install extras:
+`pip3 install torpy[requests]`
 
 Contribute
 ----------

@@ -14,36 +14,15 @@
 #
 
 import logging
-import threading
 
 from requests.adapters import DEFAULT_POOLBLOCK, HTTPAdapter
 from requests.packages.urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
 from requests.packages.urllib3.exceptions import NewConnectionError, ConnectTimeoutError
 from requests.packages.urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
 
+from torpy.http.base import TorInfo
+
 logger = logging.getLogger(__name__)
-
-
-class TorInfo:
-    def __init__(self, guard, hops_count):
-        self._guard = guard
-        self._hops_count = hops_count
-        self._circuits = {}
-        self._lock = threading.Lock()
-
-    def get_circuit(self, host):
-        host_key = '.'.join(host.split('.')[-2:])
-        logger.debug('[TorInfo] Waiting lock...')
-        with self._lock:
-            logger.debug('[TorInfo] Got lock...')
-            circuit = self._circuits.get(host_key)
-            if not circuit:
-                logger.debug('[TorInfo] Create new circuit for %s (key %s)', host, host_key)
-                circuit = self._guard.create_circuit(self._hops_count)
-                self._circuits[host_key] = circuit
-            else:
-                logger.debug('[TorInfo] Use existing...')
-            return circuit
 
 
 class TorHttpAdapter(HTTPAdapter):

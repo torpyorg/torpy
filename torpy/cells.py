@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import socket
 import struct
 import logging
@@ -90,7 +91,7 @@ class TorCellEmpty(TorCell):
         super().__init__(circuit_id)
         self._data = data or b''
         if len(self._data) > 0:
-            logger.warning('Has some unnecessary data: %r', self._data)
+            logger.warning('%s has some unnecessary data: %r', self.__class__.__qualname__, self._data)
 
     def _serialize_payload(self):
         return self._data

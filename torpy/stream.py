@@ -77,8 +77,11 @@ class TorSocketLoop(threading.Thread):
         self._selector.register(self._cntrl_r, EVENT_READ, self._do_stop)
 
     def _do_recv(self, sock):
-        data = sock.recv(1024)
-        self._send_func(data)
+        try:
+            data = sock.recv(1024)
+            self._send_func(data)
+        except ConnectionResetError:
+            logger.debug('Client was badly disconnected...')
 
     def _do_stop(self, sock):
         self._do_loop = False
@@ -87,10 +90,22 @@ class TorSocketLoop(threading.Thread):
         self._selector.unregister(self._cntrl_r)
         self._cntrl_w.close()
         self._cntrl_r.close()
-        self._selector.unregister(self._our_sock)
-        self._our_sock.shutdown(socket.SHUT_WR)
-        self._our_sock.close()
+        self.close_sock()
         self._selector.close()
+
+    @property
+    def fileno(self):
+        if not self._our_sock:
+            return None
+        return self._our_sock.fileno()
+
+    def close_sock(self):
+        if not self._our_sock:
+            return
+        self._selector.unregister(self._our_sock)
+        # self._our_sock.shutdown(socket.SHUT_WR)
+        self._our_sock.close()
+        self._our_sock = None
 
     def stop(self):
         self._cntrl_w.send(b'\1')
@@ -196,7 +211,7 @@ class TorStream:
     def _append(self, data):
         with self._close_lock, self._data_lock:
             if self.has_socket_loop:
-                logger.debug('Stream #%i: append %i (to sock #%x)', self.id, len(data), self._loop._our_sock.fileno())
+                logger.debug('Stream #%i: append %i (to sock #%r)', self.id, len(data), self._loop.fileno)
                 self._loop.append(data)
             else:
                 logger.debug('Stream #%i: append %i (to buffer)', self.id, len(data))
@@ -278,7 +293,12 @@ class TorStream:
     def _end(self, cell_end):
         self._state = StreamState.Disconnected
         logger.debug('Stream #%i: remote disconnected (reason = %s)', self.id, cell_end.reason.name)
-        self._has_data.set()
+        with self._close_lock, self._data_lock:
+            if self.has_socket_loop:
+                logger.debug('Close our sock...')
+                self._loop.close_sock()
+            else:
+                self._has_data.set()
 
     def _create_socket_loop(self):
         our_sock, client_sock = socket.socketpair()
@@ -321,17 +341,17 @@ class TorStream:
         if self.has_socket_loop:
             raise Exception('You must use socket')
 
-        if self._state == StreamState.Disconnected:
-            return b''
+        if self._state == StreamState.Closed:
+            raise Exception("You can't recv closed stream")
 
-        while True:
-            if len(self._buffer) != 0:
-                break
-            if self._state != StreamState.Connected:
-                break
-            signaled = self._has_data.wait(self._recv_timeout)
-            if not signaled:
-                raise Exception('recv timeout')
+        signaled = self._has_data.wait(self._recv_timeout)
+        if not signaled:
+            raise Exception('recv timeout')
+
+        # If remote side already send 'end cell' but we still
+        # has some data - we keep receiving
+        if self._state == StreamState.Disconnected and not self._buffer:
+            return b''
 
         with self._data_lock:
             if bufsize == -1:
@@ -341,7 +361,9 @@ class TorStream:
             result = self._buffer[:to_read]
             self._buffer = self._buffer[to_read:]
             logger.debug('Stream #%i: read %i (left %i)', self.id, to_read, len(self._buffer))
-            if len(self._buffer) == 0:
+
+            # Clear 'has_data' flag only if we don't have more data and not disconnected
+            if not self._buffer and self._state != StreamState.Disconnected:
                 self._has_data.clear()
 
         return result
@@ -361,7 +383,6 @@ class StreamsManager:
         self._stream_map = {}
         self._circuit = circuit
         self._auth_data = auth_data
-        self._streams_lock = threading.Lock()
 
     @staticmethod
     def get_next_stream_id():
@@ -379,12 +400,11 @@ class StreamsManager:
             yield stream
 
     def close(self, tor_stream):
-        with self._streams_lock:
-            tor_stream._close()
+        tor_stream._close()
 
-            stream = self._stream_map.pop(tor_stream.id, None)
-            if not stream:
-                logger.debug('Stream #%i: not found in stream map', tor_stream.id)
+        stream = self._stream_map.pop(tor_stream.id, None)
+        if not stream:
+            logger.debug('Stream #%i: not found in stream map', tor_stream.id)
 
     def get_by_id(self, stream_id):
         return self._stream_map.get(stream_id, None)
