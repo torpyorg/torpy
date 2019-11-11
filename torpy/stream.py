@@ -268,7 +268,7 @@ class TorStream:
             if self._state == StreamState.Connected:
                 return
             elif self._state == StreamState.Closed:
-                raise Exception('Could not connect to %r' % (address,))
+                raise ConnectionError('Could not connect to %r' % (address,))
 
             time.sleep(0.2)
 

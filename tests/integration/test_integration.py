@@ -24,7 +24,7 @@ import requests
 
 from torpy import TorClient
 from torpy.stream import TorStream
-from torpy.utils import AuthType, recv_all
+from torpy.utils import AuthType, recv_all, retry
 from torpy.http.adapter import TorHttpAdapter
 from torpy.hiddenservice import HiddenService
 from torpy.http.requests import TorRequests, tor_requests_session, do_request as requests_request
@@ -42,6 +42,7 @@ HS_STEALTH_HOST = os.getenv('HS_STEALTH_HOST')
 HS_STEALTH_AUTH = os.getenv('HS_STEALTH_AUTH')
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_clearnet_raw():
     hostname = 'ifconfig.me'
     tor = TorClient()
@@ -56,6 +57,7 @@ def test_clearnet_raw():
             assert circuit.last_node.router.ip in recv, 'wrong data received'
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_onion_raw():
     hostname = 'nzxj65x32vh2fkhk.onion'
     tor = TorClient()
@@ -71,16 +73,19 @@ def test_onion_raw():
             assert 'StickyNotes' in recv, 'wrong data received'
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests_no_agent():
     data = requests_request('https://httpbin.org/headers')
     assert 'User-Agent' not in data
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests():
     data = requests_request('https://httpbin.org/headers', headers={'User-Agent': 'Mozilla/5.0'})
     assert 'Mozilla' in data
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests_session():
     tor = TorClient()
     with tor.get_guard() as guard:
@@ -102,11 +107,13 @@ def test_requests_session():
             logger.warning(r.text)
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener_no_agent():
     data = urllib_request('https://httpbin.org/headers')
     assert 'User-Agent' not in data
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener():
     data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')])
     assert 'Mozilla' in data
@@ -214,6 +221,7 @@ def test_requests_hidden():
         logger.warning(r.text)
 
 
+@retry(2, (TimeoutError, ConnectionError, ))
 def test_select():
     sock_r, sock_w = socket.socketpair()
 
