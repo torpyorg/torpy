@@ -46,13 +46,14 @@ class MyPoolManager(PoolManager):
         self._tor_info = tor_info
         super().__init__(*args, **kwargs)
 
-    def _new_pool(self, scheme, host, port):
+    def _new_pool(self, scheme, host, port, request_context=None):
         assert scheme in ['http', 'https']
-        pool_kwargs = self.connection_pool_kw.copy()
+        if request_context is None:
+            request_context = self.connection_pool_kw.copy()
         if scheme == 'http':
-            return MyHTTPConnectionPool(self._tor_info, host, port, **pool_kwargs)
+            return MyHTTPConnectionPool(self._tor_info, host, port, **request_context)
         else:
-            return MyHTTPSConnectionPool(self._tor_info, host, port, **pool_kwargs)
+            return MyHTTPSConnectionPool(self._tor_info, host, port, **request_context)
 
 
 class MyHTTPConnectionPool(HTTPConnectionPool):
