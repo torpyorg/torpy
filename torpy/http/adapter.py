@@ -50,6 +50,9 @@ class MyPoolManager(PoolManager):
         assert scheme in ['http', 'https']
         if request_context is None:
             request_context = self.connection_pool_kw.copy()
+        request_context.pop('scheme')
+        request_context.pop('host')
+        request_context.pop('port')
         if scheme == 'http':
             return MyHTTPConnectionPool(self._tor_info, host, port, **request_context)
         else:
