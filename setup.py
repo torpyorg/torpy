@@ -42,7 +42,7 @@ setup(
     packages=find_packages(exclude=['tests']),
     python_requires='>=3.6',
     install_requires=['cryptography>2.4.2,!=2.6'],
-    extras_require={'requests': 'requests>=2.8.0,<2.12.0'},
+    extras_require={'requests': 'requests>2.9,!=2.17.0,!=2.18.0'},
     entry_points={'console_scripts': ['torpy_cli=torpy.cli.console:main',
                                       'torpy_socks=torpy.cli.socks:main']
                   },

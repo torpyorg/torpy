@@ -16,9 +16,15 @@
 import logging
 
 from requests.adapters import DEFAULT_POOLBLOCK, HTTPAdapter
-from requests.packages.urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
-from requests.packages.urllib3.exceptions import NewConnectionError, ConnectTimeoutError
-from requests.packages.urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
+try:
+    from requests.packages.urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
+    from requests.packages.urllib3.exceptions import NewConnectionError, ConnectTimeoutError
+    from requests.packages.urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
+except ImportError:
+    # requests >=2.16
+    from urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
+    from urllib3.exceptions import NewConnectionError, ConnectTimeoutError
+    from urllib3.poolmanager import PoolManager, HTTPConnectionPool, HTTPSConnectionPool
 
 from torpy.http.base import TorInfo
 
@@ -41,23 +47,33 @@ class TorHttpAdapter(HTTPAdapter):
         )
 
 
+def wrap_normalizer(base_normalizer):
+    def wrapped(request_context, *args, **kwargs):
+        context = request_context.copy()
+        context.pop('tor_info')
+        return base_normalizer(context, *args, **kwargs)
+    return wrapped
+
+
 class MyPoolManager(PoolManager):
     def __init__(self, tor_info, *args, **kwargs):
-        self._tor_info = tor_info
         super().__init__(*args, **kwargs)
-
-    def _new_pool(self, scheme, host, port):
-        assert scheme in ['http', 'https']
-        pool_kwargs = self.connection_pool_kw.copy()
-        if scheme == 'http':
-            return MyHTTPConnectionPool(self._tor_info, host, port, **pool_kwargs)
-        else:
-            return MyHTTPSConnectionPool(self._tor_info, host, port, **pool_kwargs)
+        self.pool_classes_by_scheme = {
+            'http': MyHTTPConnectionPool,
+            'https': MyHTTPSConnectionPool,
+        }
+        # for requests >= 2.11
+        if hasattr(self, 'key_fn_by_scheme'):
+            self.key_fn_by_scheme = {
+                'http': wrap_normalizer(self.key_fn_by_scheme['http']),
+                'https': wrap_normalizer(self.key_fn_by_scheme['https']),
+            }
+        self.connection_pool_kw['tor_info'] = tor_info
 
 
 class MyHTTPConnectionPool(HTTPConnectionPool):
-    def __init__(self, tor_info, *args, **kwargs):
-        self._tor_info = tor_info
+    def __init__(self, *args, **kwargs):
+        self._tor_info = kwargs.pop('tor_info')
         super().__init__(*args, **kwargs)
 
     def _new_conn(self):
@@ -75,8 +91,8 @@ class MyHTTPConnectionPool(HTTPConnectionPool):
 
 
 class MyHTTPSConnectionPool(HTTPSConnectionPool):
-    def __init__(self, tor_info, *args, **kwargs):
-        self._tor_info = tor_info
+    def __init__(self, *args, **kwargs):
+        self._tor_info = kwargs.pop('tor_info')
         super().__init__(*args, **kwargs)
 
     def _new_conn(self):
