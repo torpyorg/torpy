@@ -25,7 +25,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='torpy',
-    version='1.0.10',
+    version='1.0.11',
     description='Pure python tor protocol implementation',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -37,6 +37,7 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     keywords='python proxy anonymity privacy socks tor protocol onion hiddenservice',
     packages=find_packages(exclude=['tests']),

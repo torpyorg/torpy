@@ -288,11 +288,11 @@ class TorStream:
 
     def _connected(self, cell_connected):
         self._state = StreamState.Connected
-        logger.debug('Stream #%i: connected (remote ip %r)', self.id, cell_connected.address)
+        logger.info('Stream #%i: connected (remote ip %r)', self.id, cell_connected.address)
 
     def _end(self, cell_end):
         self._state = StreamState.Disconnected
-        logger.debug('Stream #%i: remote disconnected (reason = %s)', self.id, cell_end.reason.name)
+        logger.info('Stream #%i: remote disconnected (reason = %s)', self.id, cell_end.reason.name)
         with self._close_lock, self._data_lock:
             if self.has_socket_loop:
                 logger.debug('Close our sock...')

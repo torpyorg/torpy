@@ -504,18 +504,33 @@ class CellRelayEnd(TorCell):
 
     NUM = 3
 
-    def __init__(self, reason, circuit_id):
+    def __init__(self, reason, circuit_id, address=None, ttl=None):
         assert isinstance(reason, StreamReason), 'reason must be StreamReason enum'
         super().__init__(circuit_id)
         self.reason = reason
+        self.address = address
+        self.ttl = ttl
 
     def _serialize_payload(self):
-        return struct.pack('!B', self.reason)
+        if self.reason == StreamReason.EXIT_POLICY:
+            ip_int = struct.unpack('!I', socket.inet_aton(self.address))[0]
+            return struct.pack('!BII', self.reason, ip_int, self.ttl)
+        else:
+            return struct.pack('!B', self.reason)
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
-        reason = struct.unpack('!B', payload)[0]
-        return {'reason': StreamReason(reason)}
+        payload_reason = payload[:1]
+        reason = StreamReason(struct.unpack('!B', payload_reason)[0])
+        ttl = None
+        address = None
+        if reason == StreamReason.EXIT_POLICY:
+            # (With REASON_EXITPOLICY, the 4-byte IPv4 address or 16-byte IPv6 address
+            # forms the optional data, along with a 4-byte TTL; no other reason
+            # currently has extra data.)
+            ip_int, ttl = struct.unpack('!II', payload[1:])
+            address = socket.inet_ntoa(struct.pack('!I', ip_int))
+        return {'reason': reason, 'address': address, 'ttl': ttl}
 
     def _args_str(self):
         return 'reason = {!r}'.format(self.reason.name)
