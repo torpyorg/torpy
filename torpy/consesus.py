@@ -102,14 +102,14 @@ class DirectoryAuthoritiesList:
 
         # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
         # tor ref: directory_send_command
-        guard = TorGuard(authority)
-        with guard.create_circuit(0) as circ:
-            with circ.create_stream() as stream:
-                stream.connect_dir()
-                http_client = HttpStreamClient(stream)
-                headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-                _, response = http_client.get(authority.ip, self.consensus_url, headers=headers)
-                return response.decode()
+        with TorGuard(authority) as guard:
+            with guard.create_circuit(0) as circ:
+                with circ.create_stream() as stream:
+                    stream.connect_dir()
+                    http_client = HttpStreamClient(stream)
+                    headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
+                    _, response = http_client.get(authority.ip, self.consensus_url, headers=headers)
+                    return response.decode()
 
     def download_fp_sk(self, identity, keyid):
         # TODO: multiple key download
@@ -118,14 +118,14 @@ class DirectoryAuthoritiesList:
 
         # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
         # tor ref: directory_send_command
-        guard = TorGuard(authority)
-        with guard.create_circuit(0) as circ:
-            with circ.create_stream() as stream:
-                stream.connect_dir()
-                http_client = HttpStreamClient(stream)
-                url = f'{authority.fp_sk_url}/{identity}-{keyid}'
-                _, response = http_client.get(authority.ip, url)
-                return response.decode()
+        with TorGuard(authority) as guard:
+            with guard.create_circuit(0) as circ:
+                with circ.create_stream() as stream:
+                    stream.connect_dir()
+                    http_client = HttpStreamClient(stream)
+                    url = f'{authority.fp_sk_url}/{identity}-{keyid}'
+                    _, response = http_client.get(authority.ip, url)
+                    return response.decode()
 
     @property
     def count(self):
