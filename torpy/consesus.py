@@ -20,64 +20,32 @@ import functools
 from base64 import b32decode
 from threading import Lock
 
-from torpy.utils import retry, http_get, log_retry
+from torpy.utils import retry, log_retry
+from torpy.http.client import HttpStreamClient
 from torpy.documents import TorDocumentsFactory
+from torpy.guard import TorGuard
 from torpy.cache_storage import TorCacheDirStorage
 from torpy.crypto_common import rsa_verify, rsa_load_der
-from torpy.documents.network_status import RouterFlags, NetworkStatusDocument, FetchDescriptorError
+from torpy.documents.network_status import RouterFlags, NetworkStatusDocument, FetchDescriptorError, Router
 from torpy.documents.dir_key_certificate import DirKeyCertificate
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 
 logger = logging.getLogger(__name__)
 
 
-class DirectoryAuthority:
+class DirectoryAuthority(Router):
     """This class represents a directory authority."""
 
-    def __init__(self, name, address, or_port, v3ident, fingerprint, ipv6=None, bridge=False):
-        self._name = name
-        self._address = address
-        self._or_port = or_port
+    def __init__(self, nickname, address, or_port, v3ident, fingerprint, ipv6=None, bridge=False):
+        ip, dir_port = address.split(':')
+        super().__init__(nickname, bytes.fromhex(fingerprint), ip, or_port, dir_port, RouterFlags.Authority)
         self._v3ident = v3ident
-        self._fingerprint = fingerprint
         self._ipv6 = ipv6
         self._bridge = bridge
 
     @property
-    def name(self):
-        """Nickname of this authority."""
-        return self._name
-
-    @property
-    def fingerprint(self):
-        """Fingerprint of this authority."""
-        return self._fingerprint
-
-    @property
-    def status_url(self):
-        """Status url of this authority."""
-        return 'http://{}/tor/status-vote/current'.format(self._address)
-
-    def download(self, doc_type, prev_hash=None):
-        """
-        Download <doc_type> from this authority.
-
-        Can raise exceptions if authority not available.
-        :return: Consensus text
-        """
-        # doc_type: consensus, consensus-microdesc, authority?
-        headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-        return http_get('{}/{}'.format(self.status_url, doc_type), headers=headers)
-
-    # TODO: move to Router and inherit DirectoryAuthority from (Router)
-    @property
-    def fp_sk_url(self):
-        """Status url of this authority."""
-        return 'http://{}/tor/keys/fp-sk'.format(self._address)
-
-    def download_fp_sk(self, identity, keyid):
-        # TODO: multiple key download
-        return http_get('{}/{}-{}'.format(self.fp_sk_url, identity, keyid))
+    def v3ident(self):
+        return self._v3ident
 
 
 class DirectoryAuthoritiesList:
@@ -117,20 +85,53 @@ class DirectoryAuthoritiesList:
         # fmt: on
 
     def find(self, identity):
-        for authority in self._directory_authorities:
-            if identity == authority._v3ident:
-                return authority
+        return next((authority for authority in self._directory_authorities if authority.v3ident == identity), None)
+
+    @property
+    def authority_fpr_list(self):
+        return '+'.join([authority.v3ident[:6] for authority in self._directory_authorities if authority.v3ident])
+
+    @property
+    def consensus_url(self):
+        # tor ref: directory_get_consensus_url
+        return f'/tor/status-vote/current/consensus/{self.authority_fpr_list}.z'
+
+    def download_consensus(self, prev_hash=None):
+        authority = self.get_random()
+        logger.info('Downloading new consensus from %s authority', authority.nickname)
+
+        # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
+        # tor ref: directory_send_command
+        guard = TorGuard(authority)
+        with guard.create_circuit(0) as circ:
+            with circ.create_stream() as stream:
+                stream.connect_dir()
+                http_client = HttpStreamClient(stream)
+                headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
+                _, response = http_client.get(authority.ip, self.consensus_url, headers=headers)
+                return response.decode()
+
+    def download_fp_sk(self, identity, keyid):
+        # TODO: multiple key download
+        authority = self.get_random()
+        logger.info('Downloading fp-sk from %s', authority.nickname)
+
+        # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
+        # tor ref: directory_send_command
+        guard = TorGuard(authority)
+        with guard.create_circuit(0) as circ:
+            with circ.create_stream() as stream:
+                stream.connect_dir()
+                http_client = HttpStreamClient(stream)
+                url = f'{authority.fp_sk_url}/{identity}-{keyid}'
+                _, response = http_client.get(authority.ip, url)
+                return response.decode()
 
     @property
     def count(self):
         return len(self._directory_authorities)
 
     def get_random(self):
-        """
-        Return random directory authority.
-
-        :rtype: DirectoryAuthority
-        """
         return random.choice(self._directory_authorities)
 
 
@@ -157,10 +158,9 @@ class TorConsensus:
                 return
 
             # tor ref: networkstatus_set_current_consensus
-            authority = self._authorities.get_random()
-            logger.info('Downloading new consensus from %s authority', authority.name)
+
             prev_hash = self._document.digest_sha3_256.hex() if self._document else None
-            raw_string = authority.download('consensus', prev_hash=prev_hash)
+            raw_string = self._authorities.download_consensus(prev_hash)
 
             # Make sure it's parseable
             new_doc = TorDocumentsFactory.parse(raw_string, possible=(NetworkStatusDocument, NetworkStatusDiffDocument))
@@ -203,8 +203,7 @@ class TorConsensus:
         return signed > required  # more 50% percents of authorities sign
 
     def _get_pubkey(self, identity, signing_key_digest):
-        provider = self._authorities.get_random()
-        key_certificate = provider.download_fp_sk(identity, signing_key_digest)
+        key_certificate = self._authorities.download_fp_sk(identity, signing_key_digest)
         certs = DirKeyCertificate(key_certificate)
         return rsa_load_der(certs.dir_signing_key)
 

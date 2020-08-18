@@ -22,11 +22,18 @@ from torpy.documents.items import ItemObject, ItemMask
 class TorDocumentObject:
     START_ITEM = None
     ITEMS = None
+    CLASS = None
 
     def __init__(self, check_start=False):
         if self.START_ITEM is None or self.ITEMS is None:
             raise Exception('You must fill items for this object')
         self._check_start = check_start
+        self._fields = {}
+
+    def __getattr__(self, item):
+        """Hooks fields search."""
+        if item in self._fields:
+            return self._fields[item]
 
     @classmethod
     def from_item_result(cls, item, result):
@@ -37,14 +44,14 @@ class TorDocumentObject:
     def _update(self, item, result):
         if item.as_list:
             key = item.out_name
-            if key not in self.__dict__:
-                self.__dict__[key] = []
-            self.__dict__[key].append(result)
+            if key not in self._fields:
+                self._fields[key] = []
+            self._fields[key].append(result)
         else:
             if type(result) is dict:
-                self.__dict__.update(result)
+                self._fields.update(result)
             else:
-                self.__dict__[item.out_name] = result
+                self._fields[item.out_name] = result
 
 
 class TorDocumentReader:
@@ -110,8 +117,8 @@ class TorDocument(TorDocumentObject):
         for item in self.ITEMS:
             if type(item) is ItemObject:
                 items_obj[item.object_cls.START_ITEM.keyword] = item.object_cls.START_ITEM, item, True
-                for subitem in item.object_cls.ITEMS:
-                    items_obj[subitem.keyword] = subitem, item, False
+                for sub_item in item.object_cls.ITEMS:
+                    items_obj[sub_item.keyword] = sub_item, item, False
             elif isinstance(item, ItemMask):
                 items_mask.append(item)
             else:
@@ -173,11 +180,24 @@ class TorDocument(TorDocumentObject):
                 return
         return
 
+    def _fix_objects(self):
+        for t in self._items_obj.values():
+            if t:
+                item, oitem, st = t
+                if not oitem.object_cls.CLASS:
+                    continue
+                obj_lst = getattr(self, oitem.out_name, None)
+                for i, obj in enumerate(obj_lst):
+                    if not hasattr(obj, 'CLASS'):
+                        break
+                    obj_lst[i] = obj.CLASS(**obj._fields)
+
     def _read(self, digests_names, digest_start, digest_end):
         reader = TorDocumentReader(self._raw_string, digests_names, digest_start, digest_end)
         lines = reader.lines_gen()
         for line in lines:
             self.check_items(line, lines)
+        self._fix_objects()
         self._digests = reader.get_digests()
 
     @property

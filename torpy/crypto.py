@@ -21,13 +21,21 @@ from torpy.crypto_common import sha1, aes_update, rsa_encrypt, rsa_load_der, aes
 logger = logging.getLogger(__name__)
 
 
+TOR_DIGEST_LEN = 20
+
+
+def tor_digest(msg):
+    return sha1(msg)
+
+
 def kdf_tor(shared_secret):
+    # tor ref: crypto_expand_key_material_TAP
     t = shared_secret + bytes([0])
-    computed_auth = sha1(t)
+    computed_auth = tor_digest(t)
     key_material = b''
     for i in range(1, 5):
         t = shared_secret + bytes([i])
-        tsh = sha1(t)
+        tsh = tor_digest(t)
         key_material += tsh
     return computed_auth, key_material
 

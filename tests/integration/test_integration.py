@@ -109,13 +109,13 @@ def test_requests_session():
 
 @retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener_no_agent():
-    data = urllib_request('https://httpbin.org/headers')
+    data = urllib_request('https://httpbin.org/headers', verbose=1)
     assert 'User-Agent' not in data
 
 
 @retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener():
-    data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')])
+    data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')], verbose=1)
     assert 'Mozilla' in data
 
 

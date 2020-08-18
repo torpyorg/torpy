@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
-from torpy.http.client import HttpClient
+from torpy.http.client import HttpStreamClient
 from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor
 
 if TYPE_CHECKING:
@@ -214,15 +214,16 @@ class ResponsibleDir:
                 descriptor_id_str = b32encode(descriptor_id).decode().lower()
 
                 # tor ref: directory_send_command (DIR_PURPOSE_FETCH_RENDDESC_V2)
-                descriptor_path = '/tor/rendezvous2/{}'.format(descriptor_id_str)
+                descriptor_path = f'/tor/rendezvous2/{descriptor_id_str}'
 
-                http_client = HttpClient(stream)
-                response = http_client.get(self._router.ip, descriptor_path).decode()
-                if response and ' 200 OK' in response:
-                    return response
-                else:
+                http_client = HttpStreamClient(stream)
+                status, response = http_client.get(self._router.ip, descriptor_path)
+                response = response.decode()
+                if status != 200:
                     logger.error('Response from hsdir: %r', response)
                     raise DescriptorNotAvailable("Can't fetch descriptor")
+
+                return response
 
     def _info_to_router(self, intro_point_info):
         onion_router = self._consensus.get_router(intro_point_info['introduction_point'])

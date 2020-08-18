@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 
+import os
 import logging
+from abc import ABCMeta, abstractmethod
 
-from torpy.crypto import kdf_tor
+from torpy.crypto import TOR_DIGEST_LEN, kdf_tor
 from torpy.crypto_common import (
     hmac,
     dh_public,
@@ -34,15 +36,35 @@ from torpy.crypto_common import (
 logger = logging.getLogger(__name__)
 
 
-class NtorError(Exception):
+class KeyAgreementError(Exception):
     pass
 
 
-class TapError(Exception):
-    pass
+class KeyAgreement(metaclass=ABCMeta):
+    # tor ref: CPATH_KEY_MATERIAL_LEN
+    KEY_MATERIAL_LENGTH = 20 * 2 + 16 * 2
+
+    # tor ref: or.h
+    # #define ONION_HANDSHAKE_TYPE_TAP  0x0000
+    # #define ONION_HANDSHAKE_TYPE_FAST 0x0001
+    # #define ONION_HANDSHAKE_TYPE_NTOR 0x0002
+    TYPE = -1
+
+    def __init__(self, onion_router):
+        pass
+
+    @property
+    @abstractmethod
+    def handshake(self):
+        pass
+
+    @abstractmethod
+    def complete_handshake(self, handshake_response):
+        pass
 
 
-class TapKeyAgreement:
+class TapKeyAgreement(KeyAgreement):
+    TYPE = 0
     #
     # 5.1.3. The "TAP" handshake
     #
@@ -91,30 +113,59 @@ class TapKeyAgreement:
     # Once both parties have g^xy, they derive their shared circuit keys
     # and 'derivative key data' value via the KDF-TOR function in 5.2.1.
     #
+
     def __init__(self, onion_router):
+        super().__init__(onion_router)
+
         self._private_key = dh_private()
         self._public_key = dh_public(self._private_key)
 
     @property
-    def public_key_bytes(self):
+    def handshake(self):
         return dh_public_to_bytes(self._public_key)
 
-    def complete_handshake(self, handshake_data):
-        peer_pub_key_bytes = handshake_data[:128]
-        auth = handshake_data[128:]  # tap auth is SHA1, 20 in bytes?
-        assert len(auth) == 20, 'recieved wrong sha1 len'
+    def complete_handshake(self, handshake_response):
+        peer_pub_key_bytes = handshake_response[:128]
+        auth = handshake_response[128:]  # tap auth is SHA1, 20 in bytes?
+        assert len(auth) == TOR_DIGEST_LEN, 'received wrong sha1 len'
 
         peer_pub_key = dh_public_from_bytes(peer_pub_key_bytes)
         shared_secret = dh_shared(self._private_key, peer_pub_key)
         computed_auth, key_material = kdf_tor(shared_secret)
         if computed_auth != auth:
-            raise TapError('auth input does not match.')
+            raise KeyAgreementError('Auth input does not match.')
 
         # Cut unused bytes
-        return key_material[:72]
+        return key_material[:KeyAgreement.KEY_MATERIAL_LENGTH]
 
 
-class NtorKeyAgreement:
+class FastKeyAgreement(KeyAgreement):
+    TYPE = 1
+
+    def __init__(self, onion_router):
+        super().__init__(onion_router)
+
+        # tor ref: fast_onionskin_create
+        self._handshake = os.urandom(TOR_DIGEST_LEN)
+
+    @property
+    def handshake(self):
+        return self._handshake
+
+    def complete_handshake(self, handshake_response):
+        # tor ref: fast_client_handshake
+        peer_value = handshake_response[:TOR_DIGEST_LEN]
+        key_hash = handshake_response[TOR_DIGEST_LEN:]
+        shared_secret = self._handshake + peer_value
+        computed_auth, key_material = kdf_tor(shared_secret)
+        if computed_auth != key_hash:
+            raise KeyAgreementError('Auth input does not match.')
+        return key_material[:KeyAgreement.KEY_MATERIAL_LENGTH]
+
+
+class NtorKeyAgreement(KeyAgreement):
+    TYPE = 2
+
     def __init__(self, onion_router):
         # 5.1.4. The "ntor" handshake
 
@@ -146,6 +197,8 @@ class NtorKeyAgreement:
         # H is defined as hmac()
         # MULT is included in the curve25519 library as get_shared_key()
         # KEYGEN() is curve25519.Private()
+        super().__init__(onion_router)
+
         self.protoid = b'ntor-curve25519-sha256-1'
         self.t_mac = self.protoid + b':mac'
         self.t_key = self.protoid + b':key_extract'
@@ -177,13 +230,13 @@ class NtorKeyAgreement:
     def handshake(self):
         return self._handshake
 
-    def complete_handshake(self, handshake_data):
+    def complete_handshake(self, handshake_response):
         # The server's handshake reply is:
         # SERVER_PK   Y                       [G_LENGTH bytes]
         # AUTH        H(auth_input, t_mac)    [H_LENGTH bytes]
-        y = handshake_data[:32]  # ntor data curve25519::public_key::key_size_in_bytes
-        auth = handshake_data[32:]  # ntor auth is SHA1, 32 in bytes?
-        assert len(auth) == 32  #
+        y = handshake_response[:32]     # ntor data curve25519::public_key::key_size_in_bytes
+        auth = handshake_response[32:]  # ntor auth is SHA256, 32 in bytes
+        assert len(auth) == 32          #
 
         # The client then checks Y is in G^* [see NOTE below], and computes
 
@@ -212,7 +265,7 @@ class NtorKeyAgreement:
 
         # The client verifies that AUTH == H(auth_input, t_mac).
         if auth != hmac(self.t_mac, ai):
-            raise NtorError('auth input does not match.')
+            raise KeyAgreementError('Auth input does not match.')
 
         # Both parties check that none of the EXP() operations produced the
         # point at infinity. [NOTE: This is an adequate replacement for
@@ -240,4 +293,4 @@ class NtorKeyAgreement:
         # salt == t_key, and IKM == secret_input.
         # WARN: length must be 92
         # 72 + byte_type rend_nonce     [20]; << ignored now
-        return hkdf_sha256(key_seed, length=72, info=self.m_expand)
+        return hkdf_sha256(key_seed, length=KeyAgreement.KEY_MATERIAL_LENGTH, info=self.m_expand)

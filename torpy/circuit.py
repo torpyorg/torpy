@@ -18,11 +18,16 @@ import logging
 import threading
 from selectors import EVENT_READ, EVENT_WRITE, DefaultSelector
 from contextlib import contextmanager
+from functools import partial
+from typing import Type
 
+from torpy.utils import cached_property
 from torpy.cells import (
     CellRelay,
+    CellCreateFast,
     CellCreate2,
     CellDestroy,
+    CellCreatedFast,
     CellCreated2,
     CellRelayEnd,
     CellRelayData,
@@ -42,7 +47,7 @@ from torpy.cells import (
 from torpy.utils import ignore
 from torpy.stream import TorStream, TorWindow, StreamsManager
 from torpy.crypto_state import CryptoState
-from torpy.keyagreement import TapKeyAgreement, NtorKeyAgreement
+from torpy.keyagreement import KeyAgreement, TapKeyAgreement, NtorKeyAgreement, FastKeyAgreement
 from torpy.hiddenservice import DescriptorNotAvailable, HiddenServiceConnector
 
 logger = logging.getLogger(__name__)
@@ -56,21 +61,11 @@ class CircuitExtendError(Exception):
     """Circuit extend error."""
 
 
-# tor ref: or.h
-# #define ONION_HANDSHAKE_TYPE_TAP  0x0000
-# #define ONION_HANDSHAKE_TYPE_FAST 0x0001
-# #define ONION_HANDSHAKE_TYPE_NTOR 0x0002
-class TorHandshakeType:
-    TAP = 0
-    FAST = 1
-    NTOR = 2
-
-
 class CircuitNode:
-    def __init__(self, router, handshake_type=TorHandshakeType.NTOR):
+    def __init__(self, router, key_agreement_cls: Type[KeyAgreement] = NtorKeyAgreement):
         self._router = router
-        self._handshake_type = handshake_type
-        self._key_agreement = None
+
+        self._key_agreement_cls = key_agreement_cls
         self._crypto_state = None
 
         self._window = TorWindow()
@@ -85,28 +80,17 @@ class CircuitNode:
 
     @property
     def handshake_type(self):
-        return self._handshake_type
+        return self._key_agreement_cls.TYPE
 
-    @property
+    @cached_property
     def key_agreement(self):
-        if not self._key_agreement:
-            self._key_agreement = CircuitNode._get_key_agreement(self._router, self._handshake_type)
-        return self._key_agreement
-
-    @staticmethod
-    def _get_key_agreement(onion_router, handshake_type):
-        if handshake_type == TorHandshakeType.NTOR:
-            return NtorKeyAgreement(onion_router)
-        elif handshake_type == TorHandshakeType.TAP:
-            return TapKeyAgreement(onion_router)
-        else:
-            raise NotImplementedError('Unknown key agreement')
+        return self._key_agreement_cls(self._router)
 
     def create_onion_skin(self):
         return self.key_agreement.handshake
 
-    def complete_handshake(self, handshake_data):
-        shared_secret = self.key_agreement.complete_handshake(handshake_data)
+    def complete_handshake(self, handshake_response):
+        shared_secret = self.key_agreement.complete_handshake(handshake_response)
         self._crypto_state = CryptoState(shared_secret)
 
     def encrypt_forward(self, relay_cell):
@@ -409,14 +393,23 @@ class TorCircuit:
         """
         logger.info('Creating new circuit #%x with %s router...', self.id, router)
 
-        circuit_node = CircuitNode(router)
+        if self._consensus:
+            key_agreement_cls = NtorKeyAgreement
+            create_cls = partial(CellCreate2, key_agreement_cls.TYPE)
+            created_cls = CellCreated2
+        else:
+            key_agreement_cls = FastKeyAgreement
+            create_cls = CellCreateFast
+            created_cls = CellCreatedFast
+
+        circuit_node = CircuitNode(router, key_agreement_cls=key_agreement_cls)
         onion_skin = circuit_node.create_onion_skin()
 
-        cell_create = CellCreate2(circuit_node.handshake_type, onion_skin, self.id)
-        cell_created2 = self._send_wait(cell_create, CellCreated2)
+        cell_create = create_cls(onion_skin, self.id)
+        cell_created = self._send_wait(cell_create, created_cls)
 
         logger.debug('Verifying response...')
-        circuit_node.complete_handshake(cell_created2.handshake_data)
+        circuit_node.complete_handshake(cell_created.handshake_data)
 
         return [circuit_node]
 
@@ -539,7 +532,7 @@ class TorCircuit:
             return w.get()
 
     @check_connected
-    def extend(self, next_onion_router, handshake_type=TorHandshakeType.NTOR):
+    def extend(self, next_onion_router, key_agreement_cls=NtorKeyAgreement):
         """
         Send CellExtend to extend this Circuit.
 
@@ -553,11 +546,11 @@ class TorCircuit:
         logger.info('Extending the circuit #%x with %s...', self.id, next_onion_router)
 
         logger.debug('Sending Extend2...')
-        extend_node = CircuitNode(next_onion_router, handshake_type)
+        extend_node = CircuitNode(next_onion_router, key_agreement_cls=key_agreement_cls)
         skin = extend_node.create_onion_skin()
 
         inner_cell = CellRelayExtend2(
-            next_onion_router.ip, next_onion_router.tor_port, next_onion_router.fingerprint, skin
+            next_onion_router.ip, next_onion_router.or_port, next_onion_router.fingerprint, skin
         )
 
         recv_cell = self._send_relay_wait(
@@ -613,8 +606,8 @@ class TorCircuit:
         introducee = rendezvous_circuit.last_node.router
 
         # ! For Introduce we must use tap handshake
-        extend_node = CircuitNode(introduction_point, handshake_type=TorHandshakeType.TAP)
-        public_key_bytes = extend_node.key_agreement.public_key_bytes
+        extend_node = CircuitNode(introduction_point, key_agreement_cls=TapKeyAgreement)
+        public_key_bytes = extend_node.key_agreement.handshake
 
         inner_cell = CellRelayIntroduce1(
             introduction_point, public_key_bytes, introducee, rendezvous_cookie, auth_type, descriptor_cookie, self._id

@@ -62,7 +62,7 @@ def tor_requests_session(hops_count=3, headers=None, auth_data=None):
             yield s
 
 
-def do_request(url, method='get', data=None, headers=None, hops=3, auth_data=None, verbose=0):
+def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0):
     with tor_requests_session(hops, auth_data) as s:
         request = Request(method, url, data=data, headers=dict(headers or []))
 

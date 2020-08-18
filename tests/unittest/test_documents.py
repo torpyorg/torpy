@@ -59,14 +59,14 @@ def object_hook(obj):
 
 
 class DocumentEncoder(json.JSONEncoder):
-    _excludes = ['_fingerprint']
+    _excludes = ['_consensus', '_service_key']
 
     def default(self, obj):
         if isinstance(obj, dict):
             flt_dict = {
                 key: value
                 for (key, value) in obj.items()
-                if key in DocumentEncoder._excludes or not key.startswith('_')
+                if key not in DocumentEncoder._excludes
             }
             return flt_dict
         elif isinstance(obj, bytes):
@@ -76,8 +76,9 @@ class DocumentEncoder(json.JSONEncoder):
         elif isinstance(obj, (datetime.date, datetime.datetime)):
             return {'_isoformat': obj.isoformat()}
         elif isinstance(obj, TorDocumentObject):
+            return self.default(obj._fields)
+        else:
             return self.default(obj.__dict__)
-        return json.JSONEncoder.default(self, obj)
 
 
 def _compare_(o, expected_fields):

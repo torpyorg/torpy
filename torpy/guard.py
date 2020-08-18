@@ -16,7 +16,7 @@
 import logging
 import functools
 
-from torpy.cells import CellRelay, CellDestroy, CellCreated2, CellRelayTruncated
+from torpy.cells import CellRelay, CellDestroy, CellCreatedFast, CellCreated2, CellRelayTruncated
 from torpy.utils import retry, log_retry
 from torpy.circuit import TorReceiver, CircuitsManager, CellTimeoutError, CellHandlerManager, CircuitExtendError
 from torpy.cell_socket import TorCellSocket
@@ -54,7 +54,7 @@ class TorSender:
 
 
 class TorGuard:
-    def __init__(self, router, consensus, auth_data):
+    def __init__(self, router, consensus=None, auth_data=None):
         self._router = router
         self._consensus = consensus
         self._auth_data = auth_data
@@ -69,7 +69,7 @@ class TorGuard:
 
         self._handler_mgr = CellHandlerManager()
         self._handler_mgr.subscribe_for(CellDestroy, self._on_destroy)
-        self._handler_mgr.subscribe_for(CellCreated2, self._on_cell)
+        self._handler_mgr.subscribe_for([CellCreatedFast, CellCreated2], self._on_cell)
         self._handler_mgr.subscribe_for(CellRelay, self._on_relay)
 
         self._receiver = TorReceiver(self.__tor_socket, self._handler_mgr)

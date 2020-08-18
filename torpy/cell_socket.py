@@ -60,7 +60,7 @@ class TorCellSocket:
         logger.debug('Connecting socket to %s relay...', self._router)
         try:
             self._socket.settimeout(15.0)
-            self._socket.connect((self._router.ip, self._router.tor_port))
+            self._socket.connect((self._router.ip, self._router.or_port))
 
             handshake = TorHandshake(self, self._protocol)
             handshake.initiate()

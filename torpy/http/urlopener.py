@@ -121,7 +121,7 @@ def tor_opener(hops_count=3, debuglevel=0, auth_data=None) -> ContextManager[Ope
         yield build_tor_opener(guard, hops_count=hops_count, debuglevel=debuglevel)
 
 
-def do_request(url, method='get', data=None, headers=None, hops=3, auth_data=None, verbose=0):
+def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0):
     with tor_opener(hops_count=hops, auth_data=auth_data, debuglevel=verbose) as opener:
         request = Request(url, data, method=method, headers=dict(headers or []))
 

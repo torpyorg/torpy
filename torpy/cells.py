@@ -19,7 +19,7 @@ import logging
 from enum import IntEnum, unique
 
 from torpy.utils import AuthType, to_hex, fp_to_str
-from torpy.crypto import hybrid_encrypt
+from torpy.crypto import TOR_DIGEST_LEN, hybrid_encrypt
 from torpy.crypto_common import sha1
 
 logger = logging.getLogger(__name__)
@@ -391,19 +391,37 @@ class CellRelayExtend2(TorCell):
         return 'ip = {}, port = {}, fingerprint = {}'.format(self.ip, self.port, fp_to_str(self.fingerprint))
 
 
-class CellCreate2(TorCell):
-    NUM = 10
+class CellCreate(TorCell):
+    NUM = 1
 
-    def __init__(self, type, onion_skin, circuit_id):
+    def __init__(self, onion_skin, circuit_id):
         super().__init__(circuit_id)
-        self.type = type
         self.onion_skin = onion_skin
 
     def _serialize_payload(self):
-        return struct.pack('!HH', self.type, len(self.onion_skin)) + self.onion_skin
+        return self.onion_skin
 
     def _args_str(self):
-        return "type = {!r}, onion_skin = b'...'".format(self.type)
+        return "onion_skin = b'...'"
+
+
+class CellCreateFast(CellCreate):
+    NUM = 5
+
+
+class CellCreate2(TorCell):
+    NUM = 10
+
+    def __init__(self, handshake_type, onion_skin, circuit_id):
+        super().__init__(circuit_id)
+        self.handshake_type = handshake_type
+        self.onion_skin = onion_skin
+
+    def _serialize_payload(self):
+        return struct.pack('!HH', self.handshake_type, len(self.onion_skin)) + self.onion_skin
+
+    def _args_str(self):
+        return "type = {!r}, onion_skin = b'...'".format(self.handshake_type)
 
 
 class CellCreated2(TorCell):
@@ -426,9 +444,30 @@ class CellCreated2(TorCell):
 
     @staticmethod
     def _deserialize_payload(payload, proto_version):
+        # tor ref: created_cell_parse
         length = struct.unpack('!H', payload[:2])[0]
         handshake_data = payload[2:length + 2]
         return {'handshake_data': handshake_data}
+
+    def _args_str(self):
+        return 'handshake_data = ...'
+
+
+class CellCreatedFast(TorCell):
+    NUM = 6
+
+    def __init__(self, handshake_data, circuit_id):
+        super().__init__(circuit_id)
+        assert len(handshake_data) == TOR_DIGEST_LEN * 2
+        self.handshake_data = handshake_data
+
+    def _serialize_payload(self):
+        return self.handshake_data
+
+    @staticmethod
+    def _deserialize_payload(payload, proto_version):
+        # tor ref: created_cell_parse
+        return {'handshake_data': payload[:TOR_DIGEST_LEN * 2]}
 
     def _args_str(self):
         return 'handshake_data = ...'
@@ -664,7 +703,7 @@ class CellRelayIntroduce1(TorCell):
             assert len(descriptor_cookie) == 16
             handshake += struct.pack('!H16s', len(descriptor_cookie), descriptor_cookie)
         handshake += struct.pack('!I', 0)  # timestamp
-        handshake += struct.pack('!4sH', socket.inet_aton(introducee.ip), introducee.tor_port)
+        handshake += struct.pack('!4sH', socket.inet_aton(introducee.ip), introducee.or_port)
         assert len(introducee.fingerprint) == 20
         handshake += struct.pack('!20s', introducee.fingerprint)
         handshake += struct.pack('!H', len(introducee.descriptor.onion_key)) + introducee.descriptor.onion_key
@@ -752,12 +791,12 @@ class TorCommands:
         # fmt: off
         # Fixed-length command values.
         CellPadding.NUM: CellPadding,               # 0
-        # CellCreate.NUM: CellCreate                 # 1
-        # CellCreated.NUM: CellCreated               # 2
+        CellCreate.NUM: CellCreate,                 # 1
+        # CellCreated.NUM: CellCreated,               # 2
         CellRelay.NUM: CellRelay,                   # 3
         CellDestroy.NUM: CellDestroy,               # 4
-        # CellCreateFast.NUM: CellCreateFast         # 5
-        # CellCreatedFast.NUM: CellCreatedFast       # 6
+        CellCreateFast.NUM: CellCreateFast,         # 5
+        CellCreatedFast.NUM: CellCreatedFast,       # 6
         CellNetInfo.NUM: CellNetInfo,               # 8
         CellRelayEarly.NUM: CellRelayEarly,         # 9
         CellCreate2.NUM: CellCreate2,               # 10

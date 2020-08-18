@@ -13,14 +13,36 @@
 # limitations under the License.
 #
 
+import gzip
+import zlib
+from io import BytesIO
+from http.client import parse_headers
+
 from torpy.utils import recv_all
 
 
-class HttpClient:
-    def __init__(self, sock):
-        self._sock = sock
+class HttpStreamClient:
+    def __init__(self, stream):
+        self._stream = stream
 
-    def get(self, host, path):
-        http_query = 'GET {} HTTP/1.0\r\nHost: {}\r\n\r\n'.format(path, host)
-        self._sock.send(http_query.encode())
-        return recv_all(self._sock)
+    def get(self, host, path, headers: dict = None):
+        headers = headers or {}
+        headers['Host'] = host
+        headers_str = '\r\n'.join(f'{key}: {val}' for (key, val) in headers.items())
+        http_query = f'GET {path} HTTP/1.0\r\n{headers_str}\r\n\r\n'
+        self._stream.send(http_query.encode())
+
+        raw_response = recv_all(self._stream)
+        header, body = raw_response.split(b'\r\n\r\n', 1)
+
+        f = BytesIO(header)
+        request_line = f.readline().split(b' ')
+        protocol, status = request_line[:2]
+
+        headers = parse_headers(f)
+        if headers['Content-Encoding'] == 'deflate':
+            body = zlib.decompress(body)
+        elif headers['Content-Encoding'] == 'gzip':
+            body = gzip.decompress(body)
+
+        return int(status), body

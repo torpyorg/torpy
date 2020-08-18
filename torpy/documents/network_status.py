@@ -87,10 +87,12 @@ def _parse_r_line(line, *_):
     split_line = line.split(' ')
     return {
         'nickname': split_line[0],
+        'fingerprint': split_line[1],
+        'digest': split_line[2],
         'ip': split_line[5],
         'dir_port': int(split_line[7]),
-        'tor_port': int(split_line[6]),
-        '_fingerprint': split_line[1],
+        'or_port': int(split_line[6]),
+
     }
 
 
@@ -185,7 +187,102 @@ class Descriptor:
         return self._ntor_key
 
 
+class Router:
+    def __init__(self, nickname, fingerprint, ip, or_port, dir_port,
+                 flags, version=None, digest=None, **kwargs):
+        self._nickname = nickname
+        if type(fingerprint) is not bytes:
+            fingerprint = b64decode(fingerprint)
+        self._fingerprint = fingerprint
+        self._digest = b64decode(digest) if digest else None
+        self._ip = ip
+        self._or_port = or_port
+        self._dir_port = dir_port
+        self._version = version
+        self._flags = flags
+
+        self._consensus = None
+        self._service_key = None
+
+    @property
+    def nickname(self):
+        return self._nickname
+
+    @property
+    def fingerprint(self):
+        return self._fingerprint
+
+    @property
+    def ip(self):
+        return self._ip
+
+    @property
+    def or_port(self):
+        return self._or_port
+
+    @property
+    def dir_port(self):
+        return self._dir_port
+
+    @property
+    def flags(self):
+        return self._flags
+
+    @cached_property
+    def descriptor(self):
+        logger.debug('Getting descriptor for %s...', self)
+        return self._consensus.get_descriptor(self._fingerprint)
+
+    @property
+    def service_key(self):
+        return self._service_key
+
+    @service_key.setter
+    def service_key(self, value):
+        self._service_key = value
+
+    @property
+    def fp_sk_url(self):
+        return '/tor/keys/fp-sk'
+
+    @property
+    def descriptor_url_prefix(self):
+        """
+        Get the URL to the onion router's descriptor (where keys are stored).
+
+        :return: URL
+        """
+        return f'http://{self._ip}:{self._dir_port}/tor/server/fp'
+
+    def descriptor_url(self, fingerprint):
+        return f'{self.descriptor_url_prefix}/{b16encode(fingerprint).decode()}'
+
+    def get_descriptor_for(self, fingerprint):
+        """
+        Get another router descriptor through this one.
+
+        :param fingerprint:
+        :return: Descriptor object
+        """
+        logger.debug('Getting descriptor for %s from %s', fingerprint, self)
+
+        url = self.descriptor_url(fingerprint)
+        try:
+            response = http_get(url)
+        except (ConnectionError, socket.timeout, HTTPError, URLError) as e:
+            logger.debug(e)
+            raise FetchDescriptorError("Can't fetch descriptor from %s" % url)
+
+        descriptor_info = RouterDescriptorParser.parse(response)
+        return Descriptor(**descriptor_info)
+
+    def __str__(self):
+        """Get router string representation."""
+        return f'{self._ip}:{self._or_port} ({self._nickname}; {self._version})'
+
+
 class RouterObject(TorDocumentObject):
+    CLASS = Router
 
     # "r" SP nickname SP identity SP digest SP publication SP IP SP ORPort SP DirPort NL
     # [At start, exactly once.]
@@ -218,62 +315,6 @@ class RouterObject(TorDocumentObject):
         # p reject 1-65535
         Item('p', type=ItemType.AtMostOnce),
     ]
-
-    def __init__(self):
-        self._consensus = None
-        self._service_key = None
-
-    @cached_property
-    def fingerprint(self):
-        return b64decode(self._fingerprint)
-
-    @cached_property
-    def descriptor(self):
-        logger.debug('Getting descriptor for %s...', self)
-        return self._consensus.get_descriptor(self._fingerprint)
-
-    @property
-    def service_key(self):
-        return self._service_key
-
-    @service_key.setter
-    def service_key(self, value):
-        self._service_key = value
-
-    @property
-    def descriptor_url_prefix(self):
-        """
-        Get the URL to the onion router's descriptor (where keys are stored).
-
-        :return: URL
-        """
-        return 'http://{}:{}/tor/server/fp'.format(self.ip, self.dir_port)
-
-    def descriptor_url(self, fingerprint):
-        return '{}/{}'.format(self.descriptor_url_prefix, b16encode(b64decode(fingerprint)).decode())
-
-    def get_descriptor_for(self, fingerprint):
-        """
-        Get another router descriptor through this one.
-
-        :param fingerprint:
-        :return: Descriptor object
-        """
-        logger.debug('Getting descriptor for %s from %s', fingerprint, self)
-
-        url = self.descriptor_url(fingerprint)
-        try:
-            response = http_get(url)
-        except (ConnectionError, socket.timeout, HTTPError, URLError) as e:
-            logger.debug(e)
-            raise FetchDescriptorError("Can't fetch descriptor from %s" % url)
-
-        descriptor_info = RouterDescriptorParser.parse(response)
-        return Descriptor(**descriptor_info)
-
-    def __str__(self):
-        """Get router string representation."""
-        return '{}:{} ({}; {})'.format(self.ip, self.tor_port, self.nickname, self.version)
 
 
 class NetworkStatusDocument(TorDocument):
