@@ -27,6 +27,11 @@ class SocketProxy:
     def tor_stream(self):
         return self._tor_stream
 
+    def close(self):
+        logger.debug('[SocketProxy] close')
+        self.close_tor_stream()
+        self._sock.close()
+
     def close_tor_stream(self):
         self._tor_stream.close()
 

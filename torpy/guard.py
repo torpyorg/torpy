@@ -123,7 +123,7 @@ class TorGuard:
     @retry(
         3, (CircuitExtendError, CellTimeoutError), log_func=functools.partial(log_retry, msg='Retry circuit creation')
     )
-    def create_circuit(self, hops_count):
+    def create_circuit(self, hops_count, extend_routers=None):
         if self._state != GuardState.Connected:
             raise Exception('You must connect to guard node first')
 
@@ -134,6 +134,10 @@ class TorGuard:
         except Exception:
             circuit.close()
             raise
+
+        if extend_routers:
+            for router in extend_routers:
+                circuit.extend(router)
 
         return circuit
 

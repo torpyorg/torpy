@@ -358,8 +358,8 @@ class TorCircuit:
             )
             logger.debug('Circuit created')
 
-    def create_new_circuit(self, hops_count=0):
-        return self._guard.create_circuit(hops_count)
+    def create_new_circuit(self, hops_count=0, extend_routers=None):
+        return self._guard.create_circuit(hops_count, extend_routers)
 
     def destroy(self, send_destroy=True):
         with self._state_lock:

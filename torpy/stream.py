@@ -210,6 +210,10 @@ class TorStream:
 
     def _append(self, data):
         with self._close_lock, self._data_lock:
+            if self._state == StreamState.Closed:
+                logger.warning('Stream #%i: closed (but received %r)', self.id, data)
+                return
+
             if self.has_socket_loop:
                 logger.debug('Stream #%i: append %i (to sock #%r)', self.id, len(data), self._loop.fileno)
                 self._loop.append(data)

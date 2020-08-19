@@ -54,7 +54,8 @@ def test_clearnet_raw():
             stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
             recv = recv_all(stream).decode()
             logger.warning('recv: %s', recv)
-            assert circuit.last_node.router.ip in recv, 'wrong data received'
+            search_ip = '.'.join(circuit.last_node.router.ip.split('.')[:-1]) + '.'
+            assert search_ip in recv, 'wrong data received'
 
 
 @retry(2, (TimeoutError, ConnectionError, ))
@@ -233,6 +234,7 @@ def test_select():
     with tor.get_guard() as guard:
 
         def recv_callback(sock_or_stream, mask):
+            logger.debug(f'recv_callback {sock_or_stream}')
             kind = type(sock_or_stream)
             data = sock_or_stream.recv(1024)
             logger.info('%s: %r', kind.__name__, data.decode())

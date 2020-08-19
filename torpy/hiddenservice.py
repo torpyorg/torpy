@@ -204,8 +204,7 @@ class ResponsibleDir:
         # tor ref: rend_client_fetch_v2_desc
 
         logger.info('Create circuit for hsdir')
-        with self._circuit.create_new_circuit() as directory_circuit:
-            directory_circuit.extend(self._router)
+        with self._circuit.create_new_circuit(extend_routers=[self._router]) as directory_circuit:
             assert directory_circuit.nodes_count == 2
 
             with directory_circuit.create_stream() as stream:
@@ -268,8 +267,7 @@ class IntroductionPoint:
         # Waiting for CellRelayRendezvous2 in our main circuit
         with self._circuit.create_waiter(CellRelayRendezvous2) as w:
             # Create introduction point circuit
-            with self._circuit.create_new_circuit() as intro_circuit:
-                intro_circuit.extend(self._introduction_router)
+            with self._circuit.create_new_circuit(extend_routers=[self._introduction_router]) as intro_circuit:
                 assert intro_circuit.nodes_count == 2
 
                 # Send Introduce1
