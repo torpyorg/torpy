@@ -46,8 +46,8 @@ class TorRequests:
             return s.send(r.prepare())
 
     @contextmanager
-    def get_session(self):
-        adapter = TorHttpAdapter(self._guard, self._hops_count)
+    def get_session(self, retries=0):
+        adapter = TorHttpAdapter(self._guard, self._hops_count, retries=retries)
         with Session() as s:
             s.headers.update(self._headers)
             s.mount('http://', adapter)
@@ -56,14 +56,14 @@ class TorRequests:
 
 
 @contextmanager
-def tor_requests_session(hops_count=3, headers=None, auth_data=None):
+def tor_requests_session(hops_count=3, headers=None, auth_data=None, retries=0):
     with TorRequests(hops_count, headers, auth_data) as tr:
-        with tr.get_session() as s:
+        with tr.get_session(retries=retries) as s:
             yield s
 
 
-def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0):
-    with tor_requests_session(hops, auth_data) as s:
+def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0, retries=0):
+    with tor_requests_session(hops, auth_data, retries=retries) as s:
         request = Request(method, url, data=data, headers=dict(headers or []))
 
         logger.warning('Sending: %s %s', request.method, request.url)

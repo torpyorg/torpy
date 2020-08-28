@@ -207,7 +207,7 @@ class TorConsensus:
         certs = DirKeyCertificate(key_certificate)
         return rsa_load_der(certs.dir_signing_key)
 
-    def get_router(self, fingerprint):
+    def get_router(self, fingerprint) -> Router:
         # TODO: make mapping with fingerprint as key?
         fingerprint_b = b32decode(fingerprint.upper())
         return next(onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)

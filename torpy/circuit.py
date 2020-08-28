@@ -16,6 +16,7 @@
 import socket
 import logging
 import threading
+from enum import unique, Enum, auto
 from selectors import EVENT_READ, EVENT_WRITE, DefaultSelector
 from contextlib import contextmanager
 from functools import partial
@@ -233,10 +234,13 @@ class TorReceiver(threading.Thread):
         logger.debug('Stopped...')
 
 
-class TorCircuitState:
-    Unknown = 0
-    Connected = 1
-    Destroyed = 2
+@unique
+class TorCircuitState(Enum):
+    Unknown = auto()
+    Connecting = auto()
+    Connected = auto()
+    Truncated = auto()
+    Destroyed = auto()
 
 
 class CellHandlerManager:
@@ -310,14 +314,14 @@ class CellHandlerManager:
 
 def check_connected(fn):
     def wrapped(self, *args, **kwargs):
-        assert self.connected, 'Circuit must be connected first'
+        assert self.connected, f'Circuit must be connected (state = {self._state.name}))'
         return fn(self, *args, **kwargs)
 
     return wrapped
 
 
 class TorCircuit:
-    def __init__(self, id, router, sender, consensus, auth_data):
+    def __init__(self, id, router, sender, consensus=None, auth_data=None):
         self._id = id
         self._router = router
         self._sender = sender
@@ -349,13 +353,14 @@ class TorCircuit:
     def create(self, guard):
         with self._state_lock:
             assert self._state == TorCircuitState.Unknown, 'Circuit already connected'
+            self._state = TorCircuitState.Connecting
             self._circuit_nodes = self._initialize(self._router)
-            self._state = TorCircuitState.Connected
             self._guard = guard
             self._handler_mgr.subscribe_for(CellRelayTruncated, self._on_truncated)
             self._handler_mgr.subscribe_for(
                 [CellRelayData, CellRelaySendMe, CellRelayConnected, CellRelayEnd], self._on_stream
             )
+            self._state = TorCircuitState.Connected
             logger.debug('Circuit created')
 
     def create_new_circuit(self, hops_count=0, extend_routers=None):
@@ -363,16 +368,21 @@ class TorCircuit:
 
     def destroy(self, send_destroy=True):
         with self._state_lock:
+            logger.debug('#%x circuit: destroying (state: %s)...', self.id, self._state.name)
+
+            if self._state == TorCircuitState.Unknown:
+                raise Exception('#{:x} circuit is not yet connected'.format(self.id))
+
+            if self._state == TorCircuitState.Destroyed:
+                logger.warning('#%x circuit: has been destroyed already', self.id)
+                return
+
             if self._state == TorCircuitState.Connected:
                 # Destroy all streams belonging to the current circuit
                 self.close_all_streams()
                 if send_destroy:
                     # Destroy the circuit itself
                     self._send(CellDestroy(CircuitReason.FINISHED, self.id))
-            elif self._state == TorCircuitState.Destroyed:
-                logger.debug('#%x circuit has been destroyed already', self.id)
-            else:
-                raise Exception('#{:x} circuit is not yet connected'.format(self.id))
 
             self._state = TorCircuitState.Destroyed
 
@@ -470,7 +480,8 @@ class TorCircuit:
     def _on_truncated(self, cell, from_node, orig_cell):
         # tor ref: circuit_truncated
         logger.error('Circuit #%x was truncated by remote (%s)', self.id, cell.reason.name)
-        self._guard.destroy_circuit(self)
+        self._state = TorCircuitState.Truncated
+        # self._guard.destroy_circuit(self)?
 
     def _encrypt(self, relay_cell):
         # When a relay cell is sent from an OP, the OP encrypts the payload
@@ -507,6 +518,7 @@ class TorCircuit:
     def _send(self, cell):
         return self._sender.send(cell)
 
+    @check_connected
     def create_waiter(self, wait_cell):
         # WARN: only for one thread things
         return self._handler_mgr.create_waiter(wait_cell)
@@ -617,6 +629,7 @@ class TorCircuit:
 
         return extend_node
 
+    @check_connected
     def extend_to_hidden(self, hidden_service):
         logger.info('Extending #%x circuit for hidden service %s...', self.id, hidden_service.hostname)
 

@@ -41,8 +41,10 @@ HS_BASIC_AUTH = os.getenv('HS_BASIC_AUTH')
 HS_STEALTH_HOST = os.getenv('HS_STEALTH_HOST')
 HS_STEALTH_AUTH = os.getenv('HS_STEALTH_AUTH')
 
+RETRIES = 3
 
-@retry(2, (TimeoutError, ConnectionError, ))
+
+@retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_clearnet_raw():
     hostname = 'ifconfig.me'
     tor = TorClient()
@@ -58,7 +60,7 @@ def test_clearnet_raw():
             assert search_ip in recv, 'wrong data received'
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
+@retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_onion_raw():
     hostname = 'nzxj65x32vh2fkhk.onion'
     tor = TorClient()
@@ -74,23 +76,20 @@ def test_onion_raw():
             assert 'StickyNotes' in recv, 'wrong data received'
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests_no_agent():
-    data = requests_request('https://httpbin.org/headers')
+    data = requests_request('https://httpbin.org/headers', retries=RETRIES)
     assert 'User-Agent' not in data
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests():
-    data = requests_request('https://httpbin.org/headers', headers={'User-Agent': 'Mozilla/5.0'})
+    data = requests_request('https://httpbin.org/headers', headers={'User-Agent': 'Mozilla/5.0'}, retries=RETRIES)
     assert 'Mozilla' in data
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
 def test_requests_session():
     tor = TorClient()
     with tor.get_guard() as guard:
-        adapter = TorHttpAdapter(guard, 3)
+        adapter = TorHttpAdapter(guard, 3, retries=RETRIES)
 
         with requests.Session() as s:
             s.headers.update({'User-Agent': 'Mozilla/5.0'})
@@ -108,15 +107,14 @@ def test_requests_session():
             logger.warning(r.text)
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener_no_agent():
-    data = urllib_request('https://httpbin.org/headers', verbose=1)
+    data = urllib_request('https://httpbin.org/headers', verbose=1, retries=RETRIES)
     assert 'User-Agent' not in data
 
 
-@retry(2, (TimeoutError, ConnectionError, ))
 def test_urlopener():
-    data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')], verbose=1)
+    data = urllib_request('https://httpbin.org/headers', headers=[('User-Agent', 'Mozilla/5.0')], verbose=1,
+                          retries=RETRIES)
     assert 'Mozilla' in data
 
 
@@ -134,7 +132,7 @@ def test_multi_threaded():
             links.append('http://' + HS_BASIC_HOST)
         links = links * 10
 
-        with tor_requests.get_session() as sess:
+        with tor_requests.get_session(retries=RETRIES) as sess:
 
             def process(link):
                 try:
@@ -154,6 +152,7 @@ def test_multi_threaded():
     logger.debug('test_multi_threaded ends: %r', results)
 
 
+@retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_basic_auth():
     """Connecting to Hidden Service with 'Basic' authorization."""
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
@@ -172,6 +171,7 @@ def test_basic_auth():
             logger.warning('recv: %s', recv)
 
 
+@retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_stealth_auth():
     """Connecting to Hidden Service with 'Stealth' authorization."""
     if not HS_STEALTH_HOST or not HS_STEALTH_AUTH:
@@ -190,6 +190,7 @@ def test_stealth_auth():
             logger.warning('recv: %s', recv)
 
 
+@retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_basic_auth_pre():
     """Using pre-defined authorization data for making HTTP requests."""
     if not HS_BASIC_HOST or not HS_BASIC_AUTH:
@@ -216,7 +217,7 @@ def test_requests_hidden():
         return
 
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)}
-    with tor_requests_session(auth_data=auth_data) as sess:
+    with tor_requests_session(auth_data=auth_data, retries=RETRIES) as sess:
         r = sess.get('http://{}/'.format(HS_BASIC_HOST), timeout=30)
         logger.warning(r)
         logger.warning(r.text)

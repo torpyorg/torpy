@@ -17,6 +17,7 @@ import time
 import socket
 import logging
 import threading
+from enum import unique, Enum, auto
 from selectors import EVENT_READ, DefaultSelector
 from contextlib import contextmanager
 
@@ -70,6 +71,7 @@ class TorSocketLoop(threading.Thread):
         self._send_func = send_func
         self._do_loop = True
 
+        self._cntrl_l = threading.Lock()
         self._cntrl_r, self._cntrl_w = socket.socketpair()
 
         self._selector = DefaultSelector()
@@ -87,11 +89,13 @@ class TorSocketLoop(threading.Thread):
         self._do_loop = False
 
     def _cleanup(self):
-        self._selector.unregister(self._cntrl_r)
-        self._cntrl_w.close()
-        self._cntrl_r.close()
-        self.close_sock()
-        self._selector.close()
+        with self._cntrl_l:
+            logger.debug('Cleanup')
+            self._selector.unregister(self._cntrl_r)
+            self._cntrl_w.close()
+            self._cntrl_r.close()
+            self.close_sock()
+            self._selector.close()
 
     @property
     def fileno(self):
@@ -103,12 +107,14 @@ class TorSocketLoop(threading.Thread):
         if not self._our_sock:
             return
         self._selector.unregister(self._our_sock)
-        # self._our_sock.shutdown(socket.SHUT_WR)
         self._our_sock.close()
         self._our_sock = None
 
     def stop(self):
-        self._cntrl_w.send(b'\1')
+        #  Because stop could be called twice
+        with self._cntrl_l:
+            logger.debug('Stopping...')
+            self._cntrl_w.send(b'\1')
 
     def run(self):
         logger.debug('Starting...')
@@ -119,27 +125,28 @@ class TorSocketLoop(threading.Thread):
                 callback(key.fileobj)
 
         self._cleanup()
-        logger.debug('Stopped...')
+        logger.debug('Stopped!')
 
     def append(self, data):
         self._our_sock.send(data)
 
 
-class StreamState:
-    Connecting = 1
-    Connected = 2
-    Disconnected = 3
-    Closed = 4
+@unique
+class StreamState(Enum):
+    Connecting = auto()
+    Connected = auto()
+    Disconnected = auto()
+    Closed = auto()
 
 
 class TorStream:
     """This tor stream object implements socket-like interface."""
 
-    def __init__(self, id, circuit, auth_data):
+    def __init__(self, id, circuit, auth_data=None):
         logger.info('Creating stream #%i attached to #%x circuit...', id, circuit.id)
         self._id = id
         self._circuit = circuit
-        self._auth_data = auth_data
+        self._auth_data = auth_data or {}
 
         self._buffer = bytearray()
         self._data_lock = threading.Lock()
@@ -226,7 +233,7 @@ class TorStream:
         self._circuit.close_stream(self)
 
     def _close(self):
-        logger.info('Stream #%i: closing...', self.id)
+        logger.info('Stream #%i: closing (state = %s)...', self.id, self._state.name)
 
         with self._close_lock:
             if self._state == StreamState.Closed:

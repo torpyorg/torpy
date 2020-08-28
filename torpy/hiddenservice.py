@@ -17,14 +17,14 @@ import os
 import time
 import struct
 import logging
-from base64 import b32decode, b32encode, b64decode
+from base64 import b32decode, b32encode
 from typing import TYPE_CHECKING
 
 from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
 from torpy.http.client import HttpStreamClient
-from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor
+from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor, b64decode
 
 if TYPE_CHECKING:
     from torpy.circuit import TorCircuit

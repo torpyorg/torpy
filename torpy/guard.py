@@ -98,14 +98,6 @@ class TorGuard:
         for circuit in list(self._circuits_manager.circuits()):
             self.destroy_circuit(circuit)
 
-    def _get_circuit(self, circuit_id):
-        circuit = self._circuits_manager.get_by_id(circuit_id)
-        if not circuit:
-            if self._state != GuardState.Connected:
-                return
-            raise Exception('Circuit #{:x} not found'.format(circuit_id))
-        return circuit
-
     @cell_to_circuit
     def _on_destroy(self, cell, circuit):
         logger.info('On destroy: circuit #%x', cell.circuit_id)
@@ -128,16 +120,18 @@ class TorGuard:
             raise Exception('You must connect to guard node first')
 
         circuit = self._circuits_manager.create_new()
-        circuit.create(self)
         try:
+            circuit.create(self)
+
             circuit.build_hops(hops_count)
+
+            if extend_routers:
+                for router in extend_routers:
+                    circuit.extend(router)
         except Exception:
+            # We must close here because we didn't enter to circuit yet to guard by context manager
             circuit.close()
             raise
-
-        if extend_routers:
-            for router in extend_routers:
-                circuit.extend(router)
 
         return circuit
 

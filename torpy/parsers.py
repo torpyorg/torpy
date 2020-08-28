@@ -15,7 +15,8 @@
 
 import re
 import logging
-from base64 import b64decode
+
+from torpy.crypto_common import b64decode
 
 logger = logging.getLogger(__name__)
 

@@ -32,9 +32,9 @@ logger = logging.getLogger(__name__)
 
 
 class TorHttpAdapter(HTTPAdapter):
-    def __init__(self, guard, hops_count):
+    def __init__(self, guard, hops_count, retries=0):
         self._tor_info = TorInfo(guard, hops_count)
-        super().__init__()
+        super().__init__(max_retries=retries)
 
     def init_poolmanager(self, connections, maxsize, block=DEFAULT_POOLBLOCK, **pool_kwargs):
         # save these values for pickling

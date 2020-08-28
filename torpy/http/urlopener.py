@@ -14,9 +14,11 @@
 #
 
 import logging
+import socket
 from typing import ContextManager
 from contextlib import contextmanager
 from http.client import HTTPConnection, HTTPSConnection, HTTPResponse
+from urllib.error import URLError
 from urllib.request import (
     Request,
     OpenerDirector,
@@ -101,8 +103,23 @@ class TorHTTPSHandler(HTTPSHandler):
                             context=self._context, check_hostname=self._check_hostname, tor_info=self._tor_info)
 
 
+class RetryOpenerDirector(OpenerDirector):
+    def open(self, fullurl, retries=1, *args, **kwargs):
+        assert retries >= 1
+        last_err = None
+        for _ in range(retries):
+            try:
+                return super().open(fullurl, *args, **kwargs)
+            except URLError as err:
+                last_err = err
+                if not isinstance(err.reason, socket.timeout):
+                    raise
+        else:
+            raise last_err
+
+
 def build_tor_opener(guard, hops_count=3, debuglevel=0):
-    opener = OpenerDirector()
+    opener = RetryOpenerDirector()
     default_classes = [ProxyHandler, UnknownHandler,
                        HTTPDefaultErrorHandler, HTTPRedirectHandler,
                        HTTPErrorProcessor]
@@ -115,18 +132,18 @@ def build_tor_opener(guard, hops_count=3, debuglevel=0):
 
 
 @contextmanager
-def tor_opener(hops_count=3, debuglevel=0, auth_data=None) -> ContextManager[OpenerDirector]:
+def tor_opener(hops_count=3, debuglevel=0, auth_data=None) -> ContextManager[RetryOpenerDirector]:
     tor = TorClient(auth_data=auth_data)
     with tor.get_guard() as guard:
         yield build_tor_opener(guard, hops_count=hops_count, debuglevel=debuglevel)
 
 
-def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0):
+def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0, retries=3):
     with tor_opener(hops_count=hops, auth_data=auth_data, debuglevel=verbose) as opener:
         request = Request(url, data, method=method, headers=dict(headers or []))
 
         logger.warning('Sending: %s %s', request.get_method(), request.full_url)
-        with opener.open(request) as response:
+        with opener.open(request, retries=retries) as response:
             logger.warning('Response status: %r', response.status)
             logger.debug('Reading...')
             return response.read().decode('utf-8')

@@ -622,8 +622,32 @@ class CellRelayConnected(TorCell):
             return ''
 
 
-class CellRelaySendMe(TorCellEmpty):
+class CellRelaySendMe(TorCell):
     NUM = 5
+
+    def __init__(self, version=None, digest=None, circuit_id=0):
+        super().__init__(circuit_id)
+        self._version = version
+        self._digest = digest
+
+    def _serialize_payload(self):
+        if self._version and self._digest:
+            return struct.pack('!BH', self._version, len(self._digest)) + self._digest
+        else:
+            return b''
+
+    @staticmethod
+    def _deserialize_payload(payload, proto_version):
+        version = None
+        digest = None
+        if len(payload) > 0:
+            version, data_len = struct.unpack('!BH', payload[:3])
+            if version != 0 and version != 1:
+                logger.error('wrong sendme call version')
+            digest = payload[3:3 + data_len]
+            if len(payload[3 + data_len:]) > 0:
+                logger.error('has some extra data: %r', payload[3 + data_len:])
+        return {'version': version, 'digest': digest}
 
 
 class CellRelayTruncated(CellDestroy):
