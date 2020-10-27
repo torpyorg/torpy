@@ -6,6 +6,6 @@
 #
 asn1crypto==1.1.0         # via cryptography
 cffi==1.13.0              # via cryptography
-cryptography==2.7
+cryptography==3.2
 pycparser==2.19           # via cffi
 six==1.12.0               # via cryptography
