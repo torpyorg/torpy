@@ -47,33 +47,33 @@ RETRIES = 3
 @retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_clearnet_raw():
     hostname = 'ifconfig.me'
-    tor = TorClient()
-    # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
-        # Create tor stream to host
-        with circuit.create_stream((hostname, 80)) as stream:
-            # Send some data to it
-            stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
-            recv = recv_all(stream).decode()
-            logger.warning('recv: %s', recv)
-            search_ip = '.'.join(circuit.last_node.router.ip.split('.')[:-1]) + '.'
-            assert search_ip in recv, 'wrong data received'
+    with TorClient() as tor:
+        # Choose random guard node and create 3-hops circuit
+        with tor.create_circuit(3) as circuit:
+            # Create tor stream to host
+            with circuit.create_stream((hostname, 80)) as stream:
+                # Send some data to it
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
+                recv = recv_all(stream).decode()
+                logger.warning('recv: %s', recv)
+                search_ip = '.'.join(circuit.last_node.router.ip.split('.')[:-1]) + '.'
+                assert search_ip in recv, 'wrong data received'
 
 
 @retry(RETRIES, (TimeoutError, ConnectionError, ))
 def test_onion_raw():
     hostname = 'nzxj65x32vh2fkhk.onion'
-    tor = TorClient()
-    # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
-        # Create tor stream to host
-        with circuit.create_stream((hostname, 80)) as stream:
-            # Send some data to it
-            stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
+    with TorClient() as tor:
+        # Choose random guard node and create 3-hops circuit
+        with tor.create_circuit(3) as circuit:
+            # Create tor stream to host
+            with circuit.create_stream((hostname, 80)) as stream:
+                # Send some data to it
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
 
-            recv = recv_all(stream).decode()
-            logger.warning('recv: %s', recv)
-            assert 'StickyNotes' in recv, 'wrong data received'
+                recv = recv_all(stream).decode()
+                logger.warning('recv: %s', recv)
+                assert 'StickyNotes' in recv, 'wrong data received'
 
 
 def test_requests_no_agent():
@@ -87,24 +87,24 @@ def test_requests():
 
 
 def test_requests_session():
-    tor = TorClient()
-    with tor.get_guard() as guard:
-        adapter = TorHttpAdapter(guard, 3, retries=RETRIES)
+    with TorClient() as tor:
+        with tor.get_guard() as guard:
+            adapter = TorHttpAdapter(guard, 3, retries=RETRIES)
 
-        with requests.Session() as s:
-            s.headers.update({'User-Agent': 'Mozilla/5.0'})
-            s.mount('http://', adapter)
-            s.mount('https://', adapter)
+            with requests.Session() as s:
+                s.headers.update({'User-Agent': 'Mozilla/5.0'})
+                s.mount('http://', adapter)
+                s.mount('https://', adapter)
 
-            r = s.get('https://google.com', timeout=30)
-            logger.warning(r)
-            logger.warning(r.text)
-            assert r.text.rstrip().endswith('</html>')
+                r = s.get('https://google.com', timeout=30)
+                logger.warning(r)
+                logger.warning(r.text)
+                assert r.text.rstrip().endswith('</html>')
 
-            r = s.get('https://stackoverflow.com/questions/tagged/python')
-            assert r.text.rstrip().endswith('</html>')
-            logger.warning(r)
-            logger.warning(r.text)
+                r = s.get('https://stackoverflow.com/questions/tagged/python')
+                assert r.text.rstrip().endswith('</html>')
+                logger.warning(r)
+                logger.warning(r.text)
 
 
 def test_urlopener_no_agent():
@@ -160,15 +160,15 @@ def test_basic_auth():
         return
 
     hs = HiddenService(HS_BASIC_HOST, HS_BASIC_AUTH, AuthType.Basic)
-    tor = TorClient()
-    # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
-        # Create tor stream to host
-        with circuit.create_stream((hs, 80)) as stream:
-            # Send some data to it
-            stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hs.onion.encode())
-            recv = recv_all(stream).decode()
-            logger.warning('recv: %s', recv)
+    with TorClient() as tor:
+        # Choose random guard node and create 3-hops circuit
+        with tor.create_circuit(3) as circuit:
+            # Create tor stream to host
+            with circuit.create_stream((hs, 80)) as stream:
+                # Send some data to it
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hs.onion.encode())
+                recv = recv_all(stream).decode()
+                logger.warning('recv: %s', recv)
 
 
 @retry(RETRIES, (TimeoutError, ConnectionError, ))
@@ -179,15 +179,15 @@ def test_stealth_auth():
         return
 
     hs = HiddenService(HS_STEALTH_HOST, HS_STEALTH_AUTH, AuthType.Stealth)
-    tor = TorClient()
-    # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
-        # Create tor stream to host
-        with circuit.create_stream((hs, 80)) as stream:
-            # Send some data to it
-            stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hs.hostname.encode())
-            recv = recv_all(stream).decode()
-            logger.warning('recv: %s', recv)
+    with TorClient() as tor:
+        # Choose random guard node and create 3-hops circuit
+        with tor.create_circuit(3) as circuit:
+            # Create tor stream to host
+            with circuit.create_stream((hs, 80)) as stream:
+                # Send some data to it
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hs.hostname.encode())
+                recv = recv_all(stream).decode()
+                logger.warning('recv: %s', recv)
 
 
 @retry(RETRIES, (TimeoutError, ConnectionError, ))
@@ -199,15 +199,15 @@ def test_basic_auth_pre():
 
     hidden_service = HS_BASIC_HOST
     auth_data = {HS_BASIC_HOST: (HS_BASIC_AUTH, AuthType.Basic)}
-    tor = TorClient(auth_data=auth_data)
-    # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
-        # Create tor stream to host
-        with circuit.create_stream((hidden_service, 80)) as stream:
-            # Send some data to it
-            stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hidden_service.encode())
-            recv = recv_all(stream).decode()
-            logger.warning('recv: %s', recv)
+    with TorClient(auth_data=auth_data) as tor:
+        # Choose random guard node and create 3-hops circuit
+        with tor.create_circuit(3) as circuit:
+            # Create tor stream to host
+            with circuit.create_stream((hidden_service, 80)) as stream:
+                # Send some data to it
+                stream.send(b'GET / HTTP/1.0\r\nHost: %s.onion\r\n\r\n' % hidden_service.encode())
+                recv = recv_all(stream).decode()
+                logger.warning('recv: %s', recv)
 
 
 def test_requests_hidden():
@@ -231,32 +231,32 @@ def test_select():
               socket.socket: {'data': Event(), 'close': Event()}}
 
     hostname = 'ifconfig.me'
-    tor = TorClient()
-    with tor.get_guard() as guard:
+    with TorClient() as tor:
+        with tor.get_guard() as guard:
 
-        def recv_callback(sock_or_stream, mask):
-            logger.debug(f'recv_callback {sock_or_stream}')
-            kind = type(sock_or_stream)
-            data = sock_or_stream.recv(1024)
-            logger.info('%s: %r', kind.__name__, data.decode())
-            if data:
-                events[kind]['data'].set()
-            else:
-                logger.debug('closing')
-                guard.unregister(sock_or_stream)
-                events[kind]['close'].set()
+            def recv_callback(sock_or_stream, mask):
+                logger.debug(f'recv_callback {sock_or_stream}')
+                kind = type(sock_or_stream)
+                data = sock_or_stream.recv(1024)
+                logger.info('%s: %r', kind.__name__, data.decode())
+                if data:
+                    events[kind]['data'].set()
+                else:
+                    logger.debug('closing')
+                    guard.unregister(sock_or_stream)
+                    events[kind]['close'].set()
 
-        with guard.create_circuit(3) as circuit:
-            with circuit.create_stream((hostname, 80)) as stream:
-                guard.register(sock_r, EVENT_READ, recv_callback)
-                guard.register(stream, EVENT_READ, recv_callback)
+            with guard.create_circuit(3) as circuit:
+                with circuit.create_stream((hostname, 80)) as stream:
+                    guard.register(sock_r, EVENT_READ, recv_callback)
+                    guard.register(stream, EVENT_READ, recv_callback)
 
-                stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
-                sock_w.send(b'some data')
+                    stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
+                    sock_w.send(b'some data')
 
-                assert events[socket.socket]['data'].wait(10), 'no sock data received'
-                assert events[TorStream]['data'].wait(30), 'no stream data received'
+                    assert events[socket.socket]['data'].wait(10), 'no sock data received'
+                    assert events[TorStream]['data'].wait(30), 'no stream data received'
 
-                sock_w.close()
-                assert events[socket.socket]['close'].wait(10), 'no sock close received'
-                assert events[TorStream]['close'].wait(10), 'no stream close received'
+                    sock_w.close()
+                    assert events[socket.socket]['close'].wait(10), 'no sock close received'
+                    assert events[TorStream]['close'].wait(10), 'no stream close received'

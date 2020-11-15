@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-import os
+import math
 import time
 import struct
 import logging
@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING
 from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
-from torpy.http.client import HttpStreamClient
 from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor, b64decode
 
 if TYPE_CHECKING:
@@ -32,13 +31,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# ref tor: connection_ap_handle_onion
+# tor ref: handle_control_hsfetch
+# tor ref: connection_ap_handle_onion
 class HiddenService:
-    def __init__(self, onion, descriptor_cookie=None, auth_type=AuthType.No):
-        assert onion.endswith('.onion'), 'You must specify valid onion hostname'
-        # TODO: only v2 onion
-        self._onion = onion[:-6][-16:]
-        self._rendezvous_cookie = os.urandom(20)
+    # Length of 'y' portion of 'y.onion' URL.
+    REND_SERVICE_ID_LEN_BASE32 = 16
+    # Length of a binary-encoded rendezvous service ID.
+    REND_SERVICE_ID_LEN = 10
+
+    # ...
+    ED25519_PUBKEY_LEN = 32
+
+    # The amount of bytes we use from the address checksum.
+    HS_SERVICE_ADDR_CHECKSUM_LEN_USED = 2
+
+    # Length of the binary encoded service address which is of course before the
+    # base32 encoding. Construction is:
+    #    PUBKEY || CHECKSUM || VERSION
+    # with 1 byte VERSION and 2 bytes CHECKSUM. The following is 35 bytes.
+    HS_SERVICE_ADDR_LEN = (ED25519_PUBKEY_LEN + HS_SERVICE_ADDR_CHECKSUM_LEN_USED + 1)
+
+    # Length of 'y' portion of 'y.onion' URL. This is base32 encoded and the
+    # length ends up to 56 bytes (not counting the terminated NUL byte.)
+    HS_SERVICE_ADDR_LEN_BASE32 = math.ceil(HS_SERVICE_ADDR_LEN * 8 / 5)
+
+    def __init__(self, onion_address, descriptor_cookie=None, auth_type=AuthType.No):
+        self._onion_address, self._permanent_id, self._onion_identity_pk = self._parse_onion(onion_address)
         self._descriptor_cookie = b64decode(descriptor_cookie) if descriptor_cookie else None
         self._auth_type = auth_type
         if descriptor_cookie and auth_type == AuthType.No:
@@ -46,17 +64,38 @@ class HiddenService:
         if not descriptor_cookie and auth_type != AuthType.No:
             raise RuntimeError('You must specify descriptor cookie')
 
+    def _parse_onion(self, onion_address):
+        # TODO: only v2 onion
+        if onion_address.endswith('.onion'):
+            onion_address = onion_address[:-6]
+
+        if len(onion_address) == self.REND_SERVICE_ID_LEN_BASE32:
+            permanent_id = b32decode(onion_address.upper())
+            assert len(permanent_id) == self.REND_SERVICE_ID_LEN, 'You must specify valid V2 onion hostname'
+            return onion_address, permanent_id, None
+        elif len(onion_address) == self.HS_SERVICE_ADDR_LEN_BASE32:
+            # tor ref: hs_parse_address
+            decoded = b32decode(onion_address.upper())
+            pubkey = decoded[:self.ED25519_PUBKEY_LEN]
+            checksum = decoded[self.ED25519_PUBKEY_LEN:self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED]
+            version = decoded[self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED:]
+            return onion_address, None, curve25519_public_from_bytes(pubkey)
+            # fetch_v3_desc
+            # pick_hsdir_v3
+            # directory_launch_v3_desc_fetch
+
     @property
     def onion(self):
-        return self._onion
+        return self._onion_address
 
     @property
     def hostname(self):
-        return self._onion + '.onion'
+        return self._onion_address + '.onion'
 
     @property
     def permanent_id(self):
-        return b32decode(self._onion.upper())
+        """service-id / permanent-id"""
+        return self._permanent_id
 
     @property
     def descriptor_cookie(self):
@@ -65,10 +104,6 @@ class HiddenService:
     @property
     def auth_type(self):
         return self._auth_type
-
-    @property
-    def rendezvous_cookie(self):
-        return self._rendezvous_cookie
 
     def _get_secret_id(self, replica):
         """
@@ -85,7 +120,7 @@ class HiddenService:
                           / 86400
         """
         # tor ref: get_secret_id_part_bytes
-        permanent_byte = self.permanent_id[0]
+        permanent_byte = self._permanent_id[0]
         time_period = int((int(time.time()) + (permanent_byte * 86400 / 256)) / 86400)
         if self._descriptor_cookie and self._auth_type == AuthType.Stealth:
             buff = struct.pack('!I16sB', time_period, self._descriptor_cookie, replica)
@@ -95,8 +130,8 @@ class HiddenService:
 
     def get_descriptor_id(self, replica):
         # tor ref: rend_compute_v2_desc_id
-        secret_id = self._get_secret_id(replica)
-        buff = self.permanent_id + secret_id
+        # Calculate descriptor ID: H(permanent-id | secret-id-part)
+        buff = self._permanent_id + self._get_secret_id(replica)
         return sha1(buff)
 
 
@@ -202,25 +237,22 @@ class ResponsibleDir:
 
     def _fetch_descriptor(self, descriptor_id):
         # tor ref: rend_client_fetch_v2_desc
+        # tor ref: fetch_v3_desc
 
         logger.info('Create circuit for hsdir')
         with self._circuit.create_new_circuit(extend_routers=[self._router]) as directory_circuit:
             assert directory_circuit.nodes_count == 2
 
-            with directory_circuit.create_stream() as stream:
-                stream.connect_dir()
-
-                descriptor_id_str = b32encode(descriptor_id).decode().lower()
-
+            with directory_circuit.create_dir_client() as dir_client:
                 # tor ref: directory_send_command (DIR_PURPOSE_FETCH_RENDDESC_V2)
+                descriptor_id_str = b32encode(descriptor_id).decode().lower()
                 descriptor_path = f'/tor/rendezvous2/{descriptor_id_str}'
 
-                http_client = HttpStreamClient(stream)
-                status, response = http_client.get(self._router.ip, descriptor_path)
+                status, response = dir_client.get(descriptor_path)
                 response = response.decode()
                 if status != 200:
-                    logger.error('Response from hsdir: %r', response)
-                    raise DescriptorNotAvailable("Can't fetch descriptor")
+                    logger.error('No valid response from hsdir. Status = %r. Body: %r', status, response)
+                    raise DescriptorNotAvailable("Couldn't fetch descriptor")
 
                 return response
 
@@ -263,17 +295,18 @@ class IntroductionPoint:
         self._introduction_router = router
         self._circuit = circuit
 
-    def connect(self, hidden_service):
+    def connect(self, hidden_service, rendezvous_cookie):
         # Waiting for CellRelayRendezvous2 in our main circuit
         with self._circuit.create_waiter(CellRelayRendezvous2) as w:
             # Create introduction point circuit
             with self._circuit.create_new_circuit(extend_routers=[self._introduction_router]) as intro_circuit:
                 assert intro_circuit.nodes_count == 2
 
+                # TODO: tor ref: v3 hs_client send_introduce1
                 # Send Introduce1
-                extend_node = intro_circuit._rendezvous_introduce(
+                extend_node = intro_circuit.rendezvous_introduce(
                     self._circuit,
-                    hidden_service.rendezvous_cookie,
+                    rendezvous_cookie,
                     hidden_service.auth_type,
                     hidden_service.descriptor_cookie,
                 )

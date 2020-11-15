@@ -15,14 +15,13 @@
 
 import logging
 
-from torpy.documents.basics import TorDocument
-from torpy.documents.items import Item, ItemDate, ItemInt, ItemMulti
+from torpy.documents.basics import TorDocument, TorDocumentObject
+from torpy.documents.items import Item, ItemDate, ItemInt, ItemMulti, ItemObject
 
 logger = logging.getLogger(__name__)
 
 
-class DirKeyCertificate(TorDocument):
-    DOCUMENT_NAME = 'dir_key_certificate'
+class DirKeyCertificateObject(TorDocumentObject):
 
     START_ITEM = ItemInt('dir-key-certificate-version')
 
@@ -38,3 +37,18 @@ class DirKeyCertificate(TorDocument):
         ItemMulti('dir-key-crosscert', 'id signature'),
         ItemMulti('dir-key-certification', 'signature'),
     ]
+
+
+class DirKeyCertificate(TorDocument, DirKeyCertificateObject):
+    DOCUMENT_NAME = 'dir_key_certificate'
+
+
+class DirKeyCertificateList(TorDocument):
+    DOCUMENT_NAME = 'dir_key_certificates'
+
+    START_ITEM = ''
+
+    ITEMS = [ItemObject(DirKeyCertificateObject, out_name='certs')]
+
+    def find(self, identity):
+        return next((cert for cert in self.certs if cert.fingerprint == identity), None)

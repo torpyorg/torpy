@@ -18,7 +18,7 @@ import functools
 
 from torpy.cells import CellRelay, CellDestroy, CellCreatedFast, CellCreated2, CellRelayTruncated
 from torpy.utils import retry, log_retry
-from torpy.circuit import TorReceiver, CircuitsManager, CellTimeoutError, CellHandlerManager, CircuitExtendError
+from torpy.circuit import TorReceiver, CircuitsList, CellTimeoutError, CellHandlerManager, CircuitExtendError
 from torpy.cell_socket import TorCellSocket
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class GuardState:
 
 def cell_to_circuit(func):
     def wrapped(_self, cell, *args, **kwargs):
-        circuit = _self._circuits_manager.get_by_id(cell.circuit_id)
+        circuit = _self._circuits.get_by_id(cell.circuit_id)
         if not circuit:
             if _self._state != GuardState.Connected:
                 logger.debug('Ignore not found circuits on %r state', _self._state)
@@ -54,18 +54,19 @@ class TorSender:
 
 
 class TorGuard:
-    def __init__(self, router, consensus=None, auth_data=None):
+    def __init__(self, router, purpose=None, consensus=None, auth_data=None):
         self._router = router
+        self._purpose = purpose
         self._consensus = consensus
         self._auth_data = auth_data
 
         self._state = GuardState.Connecting
-        logger.info('Connecting to guard node %s...', self._router)
+        logger.info('Connecting to guard node %s... (%s)', self._router, self._purpose)
         self.__tor_socket = TorCellSocket(self._router)
         self.__tor_socket.connect()
 
         self._sender = TorSender(self.__tor_socket)
-        self._circuits_manager = CircuitsManager(self._router, self._sender, self._consensus, self._auth_data)
+        self._circuits = CircuitsList(self)
 
         self._handler_mgr = CellHandlerManager()
         self._handler_mgr.subscribe_for(CellDestroy, self._on_destroy)
@@ -77,6 +78,18 @@ class TorGuard:
 
         self._state = GuardState.Connected
 
+    @property
+    def consensus(self):
+        return self._consensus
+
+    @property
+    def router(self):
+        return self._router
+
+    @property
+    def auth_data(self):
+        return self._auth_data
+
     def __enter__(self):
         """Return Guard object."""
         return self
@@ -86,7 +99,7 @@ class TorGuard:
         self.close()
 
     def close(self):
-        logger.info('Closing guard connections...')
+        logger.info('Closing guard connections (%s)...', self._purpose)
         self._state = GuardState.Disconnecting
         self._destroy_all_circuits()
         self._receiver.stop()
@@ -95,8 +108,9 @@ class TorGuard:
 
     def _destroy_all_circuits(self):
         logger.debug('Destroying all circuits...')
-        for circuit in list(self._circuits_manager.circuits()):
-            self.destroy_circuit(circuit)
+        if self._circuits:
+            for circuit in list(self._circuits.values()):
+                self.destroy_circuit(circuit)
 
     @cell_to_circuit
     def _on_destroy(self, cell, circuit):
@@ -112,6 +126,9 @@ class TorGuard:
     def _on_relay(self, cell: CellRelay, circuit):
         circuit.handle_relay(cell)
 
+    def send_cell(self, cell):
+        return self._sender.send(cell)
+
     @retry(
         3, (CircuitExtendError, CellTimeoutError), log_func=functools.partial(log_retry, msg='Retry circuit creation')
     )
@@ -119,9 +136,9 @@ class TorGuard:
         if self._state != GuardState.Connected:
             raise Exception('You must connect to guard node first')
 
-        circuit = self._circuits_manager.create_new()
+        circuit = self._circuits.create_new()
         try:
-            circuit.create(self)
+            circuit.create()
 
             circuit.build_hops(hops_count)
 
@@ -138,7 +155,7 @@ class TorGuard:
     def destroy_circuit(self, circuit, send_destroy=True):
         logger.info('Destroy circuit #%x', circuit.id)
         circuit.destroy(send_destroy=send_destroy)
-        self._circuits_manager.remove(circuit.id)
+        self._circuits.remove(circuit.id)
 
     def register(self, sock_or_stream, events, callback):
         return self._receiver.register(sock_or_stream, events, callback)

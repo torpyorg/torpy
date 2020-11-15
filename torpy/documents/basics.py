@@ -113,7 +113,9 @@ class TorDocument(TorDocumentObject):
         items_obj = {}
         items_mask = []
 
-        items[self.START_ITEM.keyword] = self.START_ITEM, True
+        if self.START_ITEM:
+            items[self.START_ITEM.keyword] = self.START_ITEM, True
+
         for item in self.ITEMS:
             if type(item) is ItemObject:
                 items_obj[item.object_cls.START_ITEM.keyword] = item.object_cls.START_ITEM, item, True

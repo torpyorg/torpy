@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import os
 import socket
 import logging
 import threading
@@ -46,7 +47,8 @@ from torpy.cells import (
     CellRelayRendezvousEstablished,
 )
 from torpy.utils import ignore
-from torpy.stream import TorStream, TorWindow, StreamsManager
+from torpy.http.client import HttpStreamClient
+from torpy.stream import TorStream, TorWindow, StreamsList
 from torpy.crypto_state import CryptoState
 from torpy.keyagreement import KeyAgreement, TapKeyAgreement, NtorKeyAgreement, FastKeyAgreement
 from torpy.hiddenservice import DescriptorNotAvailable, HiddenServiceConnector
@@ -321,20 +323,16 @@ def check_connected(fn):
 
 
 class TorCircuit:
-    def __init__(self, id, router, sender, consensus=None, auth_data=None):
+    def __init__(self, id, guard):
         self._id = id
-        self._router = router
-        self._sender = sender
-        self._consensus = consensus
-
+        self._guard = guard
         self._handler_mgr = CellHandlerManager()
-        self._stream_manager = StreamsManager(self, auth_data)
+        self._streams = StreamsList(self, self._guard.auth_data)
 
         self._relay_send_lock = threading.Lock()
         self._circuit_nodes = None
         self._state = TorCircuitState.Unknown
         self._state_lock = threading.Lock()
-        self._guard = None
         self._associated_hs = None
         self._extend_lock = threading.Lock()
 
@@ -347,15 +345,15 @@ class TorCircuit:
         self.close()
 
     def close(self):
+        logger.debug("Close circuit #%x", self.id)
         if self._guard is not None:
             self._guard.destroy_circuit(self)
 
-    def create(self, guard):
+    def create(self):
         with self._state_lock:
             assert self._state == TorCircuitState.Unknown, 'Circuit already connected'
             self._state = TorCircuitState.Connecting
-            self._circuit_nodes = self._initialize(self._router)
-            self._guard = guard
+            self._circuit_nodes = self._initialize(self._guard.router)
             self._handler_mgr.subscribe_for(CellRelayTruncated, self._on_truncated)
             self._handler_mgr.subscribe_for(
                 [CellRelayData, CellRelaySendMe, CellRelayConnected, CellRelayEnd], self._on_stream
@@ -365,6 +363,11 @@ class TorCircuit:
 
     def create_new_circuit(self, hops_count=0, extend_routers=None):
         return self._guard.create_circuit(hops_count, extend_routers)
+
+    def create_dir_client(self):
+        stream = self.create_stream()
+        stream.connect_dir()
+        return HttpStreamClient(stream, host=self.last_node.router.ip)
 
     def destroy(self, send_destroy=True):
         with self._state_lock:
@@ -387,8 +390,8 @@ class TorCircuit:
             self._state = TorCircuitState.Destroyed
 
     def close_all_streams(self):
-        for stream in list(self._stream_manager.streams()):
-            self.close_stream(stream)
+        for stream in list(self._streams.values()):
+            stream.close()
 
     def _initialize(self, router):
         """
@@ -403,7 +406,7 @@ class TorCircuit:
         """
         logger.info('Creating new circuit #%x with %s router...', self.id, router)
 
-        if self._consensus:
+        if self._guard.consensus:
             key_agreement_cls = NtorKeyAgreement
             create_cls = partial(CellCreate2, key_agreement_cls.TYPE)
             created_cls = CellCreated2
@@ -457,7 +460,7 @@ class TorCircuit:
         if self._sendme_process(cell, from_node, orig_cell):
             return
 
-        stream = self._stream_manager.get_by_id(orig_cell.stream_id)
+        stream = self._streams.get_by_id(orig_cell.stream_id)
         if not stream:
             logger.warning('Stream #%i is already closed or was never opened (but received %s)', orig_cell.stream_id,
                            orig_cell)
@@ -474,7 +477,7 @@ class TorCircuit:
         if cell_type is CellRelayData:
             from_node.window.deliver_dec()
             if from_node.window.need_sendme():
-                self._send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
+                self.send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
         return False
 
     def _on_truncated(self, cell, from_node, orig_cell):
@@ -516,7 +519,7 @@ class TorCircuit:
         return from_node, relay_cell.get_decrypted()
 
     def _send(self, cell):
-        return self._sender.send(cell)
+        return self._guard.send_cell(cell)
 
     @check_connected
     def create_waiter(self, wait_cell):
@@ -528,7 +531,7 @@ class TorCircuit:
             self._send(cell)
             return w.get()
 
-    def _send_relay(self, inner_cell, relay_type=None, stream_id=0):
+    def send_relay(self, inner_cell, relay_type=None, stream_id=0):
         relay_type = relay_type or CellRelay
         assert issubclass(relay_type, RelayedTorCell)
 
@@ -537,9 +540,9 @@ class TorCircuit:
             self._encrypt(relay_cell)
             self._send(relay_cell)
 
-    def _send_relay_wait(self, inner_cell, wait_cells, relay_type=None, stream_id=0):
+    def send_relay_wait(self, inner_cell, wait_cells, relay_type=None, stream_id=0):
         with self._handler_mgr.create_waiter(wait_cells) as w:
-            self._send_relay(inner_cell, relay_type=relay_type, stream_id=stream_id)
+            self.send_relay(inner_cell, relay_type=relay_type, stream_id=stream_id)
             logger.debug('Getting response...')
             return w.get()
 
@@ -565,7 +568,7 @@ class TorCircuit:
             next_onion_router.ip, next_onion_router.or_port, next_onion_router.fingerprint, skin
         )
 
-        recv_cell = self._send_relay_wait(
+        recv_cell = self.send_relay_wait(
             inner_cell, [CellRelayExtended2, CellRelayTruncated], relay_type=CellRelayEarly
         )
 
@@ -582,33 +585,31 @@ class TorCircuit:
         logger.info('Building %i hops circuit...', hops_count)
         while self.nodes_count < hops_count:
             if self.nodes_count == hops_count - 1:
-                router = self._consensus.get_random_exit_node()
+                router = self._guard.consensus.get_random_exit_node()
             else:
-                router = self._consensus.get_random_middle_node()
+                router = self._guard.consensus.get_random_middle_node()
 
             self.extend(router)
         logger.debug('Circuit has been built')
 
     @check_connected
     def create_stream(self, address=None):
-        tor_stream = self._stream_manager.create_new()
+        tor_stream = self._streams.create_new()
         if address:
             tor_stream.connect(address)
         return tor_stream
 
-    def close_stream(self, tor_stream):
-        self._stream_manager.close(tor_stream)
+    def remove_stream(self, tor_stream):
+        self._streams.remove(tor_stream)
 
     def _rendezvous_establish(self, rendezvous_cookie):
-        assert len(rendezvous_cookie) == 20
-
         inner_cell = CellRelayEstablishRendezvous(rendezvous_cookie, self._id)
-        cell_established = self._send_relay_wait(inner_cell, CellRelayRendezvousEstablished)
+        cell_established = self.send_relay_wait(inner_cell, CellRelayRendezvousEstablished)
         # tor_ref: hs_client_receive_rendezvous_acked
 
         logger.info('Rendezvous established (%r)', cell_established)
 
-    def _rendezvous_introduce(self, rendezvous_circuit, rendezvous_cookie, auth_type, descriptor_cookie):
+    def rendezvous_introduce(self, rendezvous_circuit, rendezvous_cookie, auth_type, descriptor_cookie):
         # tor ref: rend_client_send_introduction
         # tor ref: hs_circ_send_introduce1
         # tor ref: hs_client_send_introduce1
@@ -624,7 +625,7 @@ class TorCircuit:
         inner_cell = CellRelayIntroduce1(
             introduction_point, public_key_bytes, introducee, rendezvous_cookie, auth_type, descriptor_cookie, self._id
         )
-        cell_ack = self._send_relay_wait(inner_cell, CellRelayIntroduceAck)
+        cell_ack = self.send_relay_wait(inner_cell, CellRelayIntroduceAck)
         logger.info('Introduced (%r)', cell_ack)
 
         return extend_node
@@ -640,12 +641,13 @@ class TorCircuit:
                     return
                 raise Exception("It's not possible associate one circuit to more then one hidden service")
 
-            # TODO: Do we need to generate a new rendezvous_cookie every time?
-            self._rendezvous_establish(hidden_service.rendezvous_cookie)
+            # tor ref: hs_circ_send_establish_rendezvous
+            rendezvous_cookie = os.urandom(20)
+            self._rendezvous_establish(rendezvous_cookie)
 
             # At any time, there are 6 hidden service directories responsible for
             # keeping replicas of a descriptor
-            connector = HiddenServiceConnector(self, self._consensus)
+            connector = HiddenServiceConnector(self, self._guard.consensus)
 
             logger.info('Iterate over responsible dirs of the hidden service')
             for responsible_dir in connector.get_responsibles_dir(hidden_service):
@@ -654,7 +656,7 @@ class TorCircuit:
                     for introduction in responsible_dir.get_introductions(hidden_service):
                         try:
                             # And finally try to agree to rendezvous with the hidden service
-                            extend_node = introduction.connect(hidden_service)
+                            extend_node = introduction.connect(hidden_service, rendezvous_cookie)
                             self._circuit_nodes.append(extend_node)
                             self._associated_hs = hidden_service
                             return
@@ -668,34 +670,29 @@ class TorCircuit:
             raise Exception("Can't extend to hidden service")
 
 
-class CircuitsManager:
+class CircuitsList:
     LOCK = threading.Lock()
     GLOBAL_CIRCUIT_ID = 0
 
-    def __init__(self, router, sender, consensus, auth_data):
-        self._router = router
-        self._sender = sender
-        self._consensus = consensus
-        self._auth_data = auth_data
-
+    def __init__(self, guard):
+        self._guard = guard
         self._circuits_map = {}
 
-    def circuits(self):
-        for circuit in self._circuits_map.values():
-            yield circuit
+    def values(self):
+        return self._circuits_map.values()
 
     @staticmethod
     def _get_next_circuit_id(msb=True):
-        with CircuitsManager.LOCK:
-            CircuitsManager.GLOBAL_CIRCUIT_ID += 1
-            circuit_id = CircuitsManager.GLOBAL_CIRCUIT_ID
+        with CircuitsList.LOCK:
+            CircuitsList.GLOBAL_CIRCUIT_ID += 1
+            circuit_id = CircuitsList.GLOBAL_CIRCUIT_ID
         if msb:
             circuit_id |= 0x80000000
         return circuit_id
 
     def create_new(self):
         circuit_id = self._get_next_circuit_id()
-        circuit = TorCircuit(circuit_id, self._router, self._sender, self._consensus, self._auth_data)
+        circuit = TorCircuit(circuit_id, self._guard)
         self._circuits_map[circuit.id] = circuit
         return circuit
 

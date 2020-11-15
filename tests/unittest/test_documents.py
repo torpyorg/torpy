@@ -25,7 +25,7 @@ import pytest
 from torpy.documents.basics import TorDocumentObject
 from torpy.documents.network_status import NetworkStatusDocument, RouterFlags
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
-from torpy.documents.dir_key_certificate import DirKeyCertificate
+from torpy.documents.dir_key_certificate import DirKeyCertificate, DirKeyCertificateList
 
 
 def load_text(file_name):
@@ -165,12 +165,15 @@ def test_network_status_diff_parse(doc_raw, diff_raw):
 
 
 @pytest.mark.parametrize(
-    'doc_raw',
+    'doc_raw, cls',
     [
-        (load_text('dir_certs/dir_cert_real'))
+        (load_text('dir_certs/dir_cert_real'), DirKeyCertificate),
+        (load_text('dir_certs/cached-certs'), DirKeyCertificateList)
     ],
-    ids=['dir_certs']
+    ids=[
+        'dir_cert',
+        'multiple_certs']
 )
-def test_dir_cert_parse(doc_raw):
-    doc = DirKeyCertificate(doc_raw)
+def test_dir_cert_parse(doc_raw, cls):
+    doc = cls(doc_raw)
     assert doc.raw_string == doc_raw

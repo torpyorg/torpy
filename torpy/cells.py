@@ -121,6 +121,9 @@ class CellVersions(TorCell):
             payload = payload[2:]
         return {'versions': versions}
 
+    def _args_str(self):
+        return 'versions = {!r}'.format(self.versions)
+
 
 class CellNetInfo(TorCell):
     """
@@ -665,6 +668,7 @@ class CellRelayEstablishRendezvous(TorCell):
 
     def __init__(self, rendezvous_cookie, circuit_id):
         super().__init__(circuit_id)
+        assert len(rendezvous_cookie) == 20
         self.rendezvous_cookie = rendezvous_cookie
 
     def _serialize_payload(self):
@@ -785,7 +789,7 @@ class CellCerts(TorCell):
     @staticmethod
     def _deserialize_payload(payload, proto_version):
         # TODO: implement parse
-        return {'certs': None}
+        return {'certs': payload}
 
 
 class CellAuthChallenge(TorCell):
@@ -801,7 +805,7 @@ class CellAuthChallenge(TorCell):
     @staticmethod
     def _deserialize_payload(payload, proto_version):
         # TODO: implement parse
-        return {'auth': None}
+        return {'auth': payload}
 
 
 class TorCommands:

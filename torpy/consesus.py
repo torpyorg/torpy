@@ -17,17 +17,18 @@ import socket
 import random
 import logging
 import functools
-from base64 import b32decode
+from base64 import b32decode, b16encode
 from threading import Lock
 
-from torpy.utils import retry, log_retry
+from torpy.utils import retry, log_retry, cached_property
 from torpy.http.client import HttpStreamClient
 from torpy.documents import TorDocumentsFactory
 from torpy.guard import TorGuard
+from torpy.parsers import RouterDescriptorParser
 from torpy.cache_storage import TorCacheDirStorage
 from torpy.crypto_common import rsa_verify, rsa_load_der
 from torpy.documents.network_status import RouterFlags, NetworkStatusDocument, FetchDescriptorError, Router
-from torpy.documents.dir_key_certificate import DirKeyCertificate
+from torpy.documents.dir_key_certificate import DirKeyCertificateList
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 
 logger = logging.getLogger(__name__)
@@ -87,45 +88,8 @@ class DirectoryAuthoritiesList:
     def find(self, identity):
         return next((authority for authority in self._directory_authorities if authority.v3ident == identity), None)
 
-    @property
-    def authority_fpr_list(self):
-        return '+'.join([authority.v3ident[:6] for authority in self._directory_authorities if authority.v3ident])
-
-    @property
-    def consensus_url(self):
-        # tor ref: directory_get_consensus_url
-        return f'/tor/status-vote/current/consensus/{self.authority_fpr_list}.z'
-
-    def download_consensus(self, prev_hash=None):
-        authority = self.get_random()
-        logger.info('Downloading new consensus from %s authority', authority.nickname)
-
-        # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
-        # tor ref: directory_send_command
-        with TorGuard(authority) as guard:
-            with guard.create_circuit(0) as circ:
-                with circ.create_stream() as stream:
-                    stream.connect_dir()
-                    http_client = HttpStreamClient(stream)
-                    headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
-                    _, response = http_client.get(authority.ip, self.consensus_url, headers=headers)
-                    return response.decode()
-
-    def download_fp_sk(self, identity, keyid):
-        # TODO: multiple key download
-        authority = self.get_random()
-        logger.info('Downloading fp-sk from %s', authority.nickname)
-
-        # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
-        # tor ref: directory_send_command
-        with TorGuard(authority) as guard:
-            with guard.create_circuit(0) as circ:
-                with circ.create_stream() as stream:
-                    stream.connect_dir()
-                    http_client = HttpStreamClient(stream)
-                    url = f'{authority.fp_sk_url}/{identity}-{keyid}'
-                    _, response = http_client.get(authority.ip, url)
-                    return response.decode()
+    def get_v3idents(self):
+        return (authority.v3ident for authority in self._directory_authorities if authority.v3ident)
 
     @property
     def count(self):
@@ -135,20 +99,47 @@ class DirectoryAuthoritiesList:
         return random.choice(self._directory_authorities)
 
 
+class Descriptor:
+    def __init__(self, onion_key, signing_key, ntor_key):
+        self._onion_key = onion_key
+        self._signing_key = signing_key
+        self._ntor_key = ntor_key
+
+    @property
+    def onion_key(self):
+        return self._onion_key
+
+    @property
+    def signing_key(self):
+        return self._signing_key
+
+    @property
+    def ntor_key(self):
+        return self._ntor_key
+
+
 class TorConsensus:
     def __init__(self, authorities=None, cache_storage=None):
         self._lock = Lock()
         self._authorities = authorities or DirectoryAuthoritiesList()
         self._cache_storage = cache_storage or TorCacheDirStorage()
         self._document = self._cache_storage.load_document(NetworkStatusDocument)
+        self._certs = self._cache_storage.load_document(DirKeyCertificateList)
         if self._document:
             self._document.link_consensus(self)
+        self._guard = self._auth_guard = None
         self.renew()
 
     @property
     def document(self):
         self.renew()
         return self._document
+
+    def close(self):
+        if self._auth_guard:
+            self._auth_guard.close()
+        if self._guard:
+            self._guard.close()
 
     @retry(3, BaseException,
            log_func=functools.partial(log_retry, msg='Retry with another authority...', no_traceback=(socket.timeout,)))
@@ -158,9 +149,8 @@ class TorConsensus:
                 return
 
             # tor ref: networkstatus_set_current_consensus
-
             prev_hash = self._document.digest_sha3_256.hex() if self._document else None
-            raw_string = self._authorities.download_consensus(prev_hash)
+            raw_string = self.download_consensus(prev_hash)
 
             # Make sure it's parseable
             new_doc = TorDocumentsFactory.parse(raw_string, possible=(NetworkStatusDocument, NetworkStatusDiffDocument))
@@ -172,8 +162,14 @@ class TorConsensus:
 
             new_doc.link_consensus(self)
 
-            if not self.verify(new_doc):
-                raise Exception('Invalid consensus')
+            verified, signing_idents = self.verify(new_doc)
+            if not verified:
+                self.renew_certs(signing_idents)
+
+                # Try verify again
+                verified, _ = self.verify(new_doc)
+                if not verified:
+                    raise Exception('Invalid consensus')
 
             # Use new consensus document
             self._document = new_doc
@@ -182,8 +178,10 @@ class TorConsensus:
     def verify(self, new_doc):
         # tor ref: networkstatus_check_consensus_signature
         signed = 0
+        # more 50% percents of authorities sign
         required = self._authorities.count / 2
 
+        signing_idents = []
         for voter in new_doc.voters:
             sign = new_doc.find_signature(voter.fingerprint)
             if not sign:
@@ -196,16 +194,28 @@ class TorConsensus:
                 continue
 
             doc_digest = new_doc.get_digest(sign['algorithm'])
-            # TODO: download through circuit
-            pubkey = self._get_pubkey(sign['identity'], sign['signing_key_digest'])
-            if rsa_verify(pubkey, sign['signature'], doc_digest):
-                signed += 1
-        return signed > required  # more 50% percents of authorities sign
 
-    def _get_pubkey(self, identity, signing_key_digest):
-        key_certificate = self._authorities.download_fp_sk(identity, signing_key_digest)
-        certs = DirKeyCertificate(key_certificate)
-        return rsa_load_der(certs.dir_signing_key)
+            pubkey = self._get_pubkey(sign['identity'])
+            if pubkey and rsa_verify(pubkey, sign['signature'], doc_digest):
+                signed += 1
+
+            signing_idents.append((sign['identity'], sign['signing_key_digest']))
+
+        return signed > required, signing_idents
+
+    def _get_pubkey(self, identity):
+        if self._certs:
+            cert = self._certs.find(identity)
+            if cert:
+                return rsa_load_der(cert.dir_signing_key)
+
+    @retry(3, BaseException,
+           log_func=functools.partial(log_retry, msg='Retry with another authority...'))
+    def renew_certs(self, signing_idents):
+        key_certificates_raw = self._authorities.download_public_keys(signing_idents)
+        certs = DirKeyCertificateList(key_certificates_raw)
+        self._certs = certs
+        self._cache_storage.save_document(certs)
 
     def get_router(self, fingerprint) -> Router:
         # TODO: make mapping with fingerprint as key?
@@ -258,6 +268,64 @@ class TorConsensus:
         flags = [RouterFlags.HSDir]
         return self.get_routers(flags, has_dir_port=True)
 
+    def _create_dir_circuit(self, authority=True, purpose=None):
+        if authority:
+            router = self._authorities.get_random()
+        else:
+            router = self.get_random_router(has_dir_port=True)
+
+        # tor ref: directory_get_from_dirserver DIR_PURPOSE_FETCH_CONSENSUS
+        # tor ref: directory_send_command
+        guard = TorGuard(router, purpose=purpose)
+        return guard, guard.create_circuit(0)
+
+    @cached_property
+    def _auth_dir_circuit(self):
+        self._auth_guard, circuit = self._create_dir_circuit(authority=True, purpose="Consensus/PublicKeys downloader")
+        return circuit
+
+    def _get_auth_dir_client(self):
+        return self._auth_dir_circuit.create_dir_client()
+
+    @cached_property
+    def _dir_circuit(self):
+        self._guard, circuit = self._create_dir_circuit(authority=False, purpose="Router descriptor downloader")
+        return circuit
+
+    def _get_dir_client(self):
+        return self._dir_circuit.create_dir_client()
+
+    @property
+    def consensus_url(self):
+        # tor ref: directory_get_consensus_url
+        fpr_list_str = '+'.join([v3ident[:6] for v3ident in self._authorities.get_v3idents()])
+        return f'/tor/status-vote/current/consensus/{fpr_list_str}.z'
+
+    def download_consensus(self, prev_hash=None):
+        logger.info('Downloading new consensus...')
+        headers = {'X-Or-Diff-From-Consensus': prev_hash} if prev_hash else None
+        with self._get_auth_dir_client() as dir_client:
+            _, body = dir_client.get(self.consensus_url, headers=headers)
+            return body.decode()
+
+    @property
+    def fp_sk_url(self):
+        return '/tor/keys/fp-sk'
+
+    def download_public_keys(self, signing_idents):
+        logger.info('Downloading public keys...')
+
+        fp_sks = '+'.join([f'{identity}-{keyid}' for (identity, keyid) in signing_idents])
+        url = f'{self.fp_sk_url}/{fp_sks}.z'
+
+        with self._get_auth_dir_client() as dir_client:
+            _, body = dir_client.get(url)
+            return body.decode()
+
+    @staticmethod
+    def _descriptor_url(fingerprint):
+        return f'/tor/server/fp/{b16encode(fingerprint).decode()}'
+
     @retry(5, BaseException,
            log_func=functools.partial(log_retry, msg='Retry with another router...',
                                       no_traceback=(FetchDescriptorError, )))
@@ -268,8 +336,19 @@ class TorConsensus:
         :param fingerprint:
         :return:
         """
-        descriptor_provider = self.get_random_router(has_dir_port=True)
-        return descriptor_provider.get_descriptor_for(fingerprint)
+        url = self._descriptor_url(fingerprint)
+        try:
+            with self._get_dir_client() as dir_client:
+                status, response = dir_client.get(url)
+            if status != 200:
+                raise FetchDescriptorError(f"Can't fetch descriptor from {url}. Status = {status}")
+            logger.info("Got descriptor")
+        except TimeoutError as e:
+            logger.debug(e)
+            raise FetchDescriptorError(f"Can't fetch descriptor from {url}")
+
+        descriptor_info = RouterDescriptorParser.parse(response.decode())
+        return Descriptor(**descriptor_info)
 
     def get_responsibles(self, hidden_service):
         """

@@ -44,6 +44,7 @@ class TorRequests:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Close guard connection."""
         self._guard.close()
+        self._tor.close()
 
     def send(self, method, url, data=None, **kwargs):
         with self.get_session() as s:

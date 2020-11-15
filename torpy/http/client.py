@@ -22,12 +22,15 @@ from torpy.utils import recv_all
 
 
 class HttpStreamClient:
-    def __init__(self, stream):
+    def __init__(self, stream, host=None):
         self._stream = stream
+        self._host = host
 
-    def get(self, host, path, headers: dict = None):
+    def get(self, path, host=None, headers: dict = None):
         headers = headers or {}
-        headers['Host'] = host
+        host = host or self._host
+        if host:
+            headers['Host'] = host
         headers_str = '\r\n'.join(f'{key}: {val}' for (key, val) in headers.items())
         http_query = f'GET {path} HTTP/1.0\r\n{headers_str}\r\n\r\n'
         self._stream.send(http_query.encode())
@@ -46,3 +49,12 @@ class HttpStreamClient:
             body = gzip.decompress(body)
 
         return int(status), body
+
+    def close(self):
+        self._stream.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()

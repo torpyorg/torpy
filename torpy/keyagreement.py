@@ -17,6 +17,7 @@ import os
 import logging
 from abc import ABCMeta, abstractmethod
 
+from torpy.utils import cached_property
 from torpy.crypto import TOR_DIGEST_LEN, kdf_tor
 from torpy.crypto_common import (
     hmac,
@@ -53,7 +54,7 @@ class KeyAgreement(metaclass=ABCMeta):
     def __init__(self, onion_router):
         pass
 
-    @property
+    @cached_property
     @abstractmethod
     def handshake(self):
         pass
@@ -120,7 +121,7 @@ class TapKeyAgreement(KeyAgreement):
         self._private_key = dh_private()
         self._public_key = dh_public(self._private_key)
 
-    @property
+    @cached_property
     def handshake(self):
         return dh_public_to_bytes(self._public_key)
 
@@ -145,18 +146,16 @@ class FastKeyAgreement(KeyAgreement):
     def __init__(self, onion_router):
         super().__init__(onion_router)
 
-        # tor ref: fast_onionskin_create
-        self._handshake = os.urandom(TOR_DIGEST_LEN)
-
-    @property
+    @cached_property
     def handshake(self):
-        return self._handshake
+        # tor ref: fast_onionskin_create
+        return os.urandom(TOR_DIGEST_LEN)
 
     def complete_handshake(self, handshake_response):
         # tor ref: fast_client_handshake
         peer_value = handshake_response[:TOR_DIGEST_LEN]
         key_hash = handshake_response[TOR_DIGEST_LEN:]
-        shared_secret = self._handshake + peer_value
+        shared_secret = self.handshake + peer_value
         computed_auth, key_material = kdf_tor(shared_secret)
         if computed_auth != key_hash:
             raise KeyAgreementError('Auth input does not match.')
@@ -211,24 +210,28 @@ class NtorKeyAgreement(KeyAgreement):
         # generates a temporary keypair:
         #     x,X = KEYGEN()
         self._x = curve25519_private()
-
         self._X = curve25519_public_from_private(self._x)
 
-        self._fingerprint_bytes = onion_router.fingerprint
+        self._onion_router = onion_router
 
-        self._B = curve25519_public_from_bytes(onion_router.descriptor.ntor_key)
+    @property
+    def _fingerprint_bytes(self):
+        return self._onion_router.fingerprint
 
+    @cached_property
+    def _B(self):
+        return curve25519_public_from_bytes(self._onion_router.descriptor.ntor_key)
+
+    @cached_property
+    def handshake(self):
         # and generates a client-side handshake with contents:
         #   NODEID      Server identity digest  [ID_LENGTH bytes]
         #   KEYID       KEYID(B)                [H_LENGTH bytes]
         #   CLIENT_PK   X                       [G_LENGTH bytes]
-        self._handshake = self._fingerprint_bytes
-        self._handshake += curve25519_to_bytes(self._B)
-        self._handshake += curve25519_to_bytes(self._X)
-
-    @property
-    def handshake(self):
-        return self._handshake
+        handshake = self._fingerprint_bytes
+        handshake += curve25519_to_bytes(self._B)
+        handshake += curve25519_to_bytes(self._X)
+        return handshake
 
     def complete_handshake(self, handshake_response):
         # The server's handshake reply is:

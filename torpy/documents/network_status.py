@@ -168,25 +168,6 @@ class RouterFlags(Enum):
         return all(self & flag for flag in flags_list)
 
 
-class Descriptor:
-    def __init__(self, onion_key, signing_key, ntor_key):
-        self._onion_key = onion_key
-        self._signing_key = signing_key
-        self._ntor_key = ntor_key
-
-    @property
-    def onion_key(self):
-        return self._onion_key
-
-    @property
-    def signing_key(self):
-        return self._signing_key
-
-    @property
-    def ntor_key(self):
-        return self._ntor_key
-
-
 class Router:
     def __init__(self, nickname, fingerprint, ip, or_port, dir_port,
                  flags, version=None, digest=None, **kwargs):
@@ -230,7 +211,7 @@ class Router:
 
     @cached_property
     def descriptor(self):
-        logger.debug('Getting descriptor for %s...', self)
+        logger.info('Getting descriptor for %s...', self)
         return self._consensus.get_descriptor(self._fingerprint)
 
     @property
@@ -240,41 +221,6 @@ class Router:
     @service_key.setter
     def service_key(self, value):
         self._service_key = value
-
-    @property
-    def fp_sk_url(self):
-        return '/tor/keys/fp-sk'
-
-    @property
-    def descriptor_url_prefix(self):
-        """
-        Get the URL to the onion router's descriptor (where keys are stored).
-
-        :return: URL
-        """
-        return f'http://{self._ip}:{self._dir_port}/tor/server/fp'
-
-    def descriptor_url(self, fingerprint):
-        return f'{self.descriptor_url_prefix}/{b16encode(fingerprint).decode()}'
-
-    def get_descriptor_for(self, fingerprint):
-        """
-        Get another router descriptor through this one.
-
-        :param fingerprint:
-        :return: Descriptor object
-        """
-        logger.debug('Getting descriptor for %s from %s', fingerprint, self)
-
-        url = self.descriptor_url(fingerprint)
-        try:
-            response = http_get(url)
-        except (ConnectionError, socket.timeout, HTTPError, URLError) as e:
-            logger.debug(e)
-            raise FetchDescriptorError("Can't fetch descriptor from %s" % url)
-
-        descriptor_info = RouterDescriptorParser.parse(response)
-        return Descriptor(**descriptor_info)
 
     def __str__(self):
         """Get router string representation."""

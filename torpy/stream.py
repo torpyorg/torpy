@@ -143,7 +143,7 @@ class TorStream:
     """This tor stream object implements socket-like interface."""
 
     def __init__(self, id, circuit, auth_data=None):
-        logger.info('Creating stream #%i attached to #%x circuit...', id, circuit.id)
+        logger.info('Stream #%i: creating attached to #%x circuit...', id, circuit.id)
         self._id = id
         self._circuit = circuit
         self._auth_data = auth_data or {}
@@ -194,7 +194,7 @@ class TorStream:
             self._append(cell.data)
             self._window.deliver_dec()
             if self._window.need_sendme():
-                self._send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
+                self.send_relay(CellRelaySendMe(circuit_id=cell.circuit_id))
             self._call_received()
         elif isinstance(cell, CellRelaySendMe):
             logger.debug('Stream #%i: sendme received', self.id)
@@ -212,8 +212,8 @@ class TorStream:
         for callback in self._received_callbacks:
             callback(self, EVENT_READ)
 
-    def _send_relay(self, inner_cell):
-        return self._circuit._send_relay(inner_cell, stream_id=self.id)
+    def send_relay(self, inner_cell):
+        return self._circuit.send_relay(inner_cell, stream_id=self.id)
 
     def _append(self, data):
         with self._close_lock, self._data_lock:
@@ -230,9 +230,6 @@ class TorStream:
                 self._has_data.set()
 
     def close(self):
-        self._circuit.close_stream(self)
-
-    def _close(self):
         logger.info('Stream #%i: closing (state = %s)...', self.id, self._state.name)
 
         with self._close_lock:
@@ -241,10 +238,12 @@ class TorStream:
                 return
 
             if self._state == StreamState.Connected:
-                self._send_relay(CellRelayEnd(StreamReason.DONE, self._circuit.id))
+                self.send_end()
 
             if self.has_socket_loop:
                 self.close_socket()
+
+            self._circuit.remove_stream(self)
 
             self._state = StreamState.Closed
             logger.debug('Stream #%i: closed', self.id)
@@ -289,17 +288,28 @@ class TorStream:
         self._state = StreamState.Connecting
 
         inner_cell = CellRelayBeginDir()
-        self._send_relay(inner_cell)
+        self.send_relay(inner_cell)
         self._wait_connected('hsdir', self._conn_timeout)
 
     def _connect(self, address):
         inner_cell = CellRelayBegin(address[0], address[1])
-        self._send_relay(inner_cell)
+        self.send_relay(inner_cell)
         self._wait_connected(address, self._conn_timeout)
 
     def _connected(self, cell_connected):
         self._state = StreamState.Connected
         logger.info('Stream #%i: connected (remote ip %r)', self.id, cell_connected.address)
+
+    def send(self, data):
+        for chunk in chunks(data, RelayedTorCell.MAX_PAYLOD_SIZE):
+            self._circuit.last_node.window.package_dec()
+            self.send_relay(CellRelayData(chunk, self._circuit.id))
+
+    def send_end(self) -> None:
+        self.send_relay(CellRelayEnd(StreamReason.DONE, self._circuit.id))
+
+    def send_sendme(self):
+        self.send_relay(CellRelaySendMe(circuit_id=self._circuit.id))
 
     def _end(self, cell_end):
         self._state = StreamState.Disconnected
@@ -379,14 +389,8 @@ class TorStream:
 
         return result
 
-    def send(self, data):
-        # logger.debug('write to tor_stream: %r', data)
-        for chunk in chunks(data, RelayedTorCell.MAX_PAYLOD_SIZE):
-            self._circuit.last_node.window.package_dec()
-            self._send_relay(CellRelayData(chunk, self._circuit.id))
 
-
-class StreamsManager:
+class StreamsList:
     LOCK = threading.Lock()
     GLOBAL_STREAM_ID = 0
 
@@ -397,22 +401,19 @@ class StreamsManager:
 
     @staticmethod
     def get_next_stream_id():
-        with StreamsManager.LOCK:
-            StreamsManager.GLOBAL_STREAM_ID += 1
-            return StreamsManager.GLOBAL_STREAM_ID
+        with StreamsList.LOCK:
+            StreamsList.GLOBAL_STREAM_ID += 1
+            return StreamsList.GLOBAL_STREAM_ID
 
     def create_new(self):
         stream = TorStream(self.get_next_stream_id(), self._circuit, self._auth_data)
         self._stream_map[stream.id] = stream
         return stream
 
-    def streams(self):
-        for stream in self._stream_map.values():
-            yield stream
+    def values(self):
+        return self._stream_map.values()
 
-    def close(self, tor_stream):
-        tor_stream._close()
-
+    def remove(self, tor_stream):
         stream = self._stream_map.pop(tor_stream.id, None)
         if not stream:
             logger.debug('Stream #%i: not found in stream map', tor_stream.id)

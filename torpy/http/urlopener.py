@@ -133,9 +133,9 @@ def build_tor_opener(guard, hops_count=3, debuglevel=0):
 
 @contextmanager
 def tor_opener(hops_count=3, debuglevel=0, auth_data=None) -> ContextManager[RetryOpenerDirector]:
-    tor = TorClient(auth_data=auth_data)
-    with tor.get_guard() as guard:
-        yield build_tor_opener(guard, hops_count=hops_count, debuglevel=debuglevel)
+    with TorClient(auth_data=auth_data) as tor:
+        with tor.get_guard() as guard:
+            yield build_tor_opener(guard, hops_count=hops_count, debuglevel=debuglevel)
 
 
 def do_request(url, method='GET', data=None, headers=None, hops=3, auth_data=None, verbose=0, retries=3):
