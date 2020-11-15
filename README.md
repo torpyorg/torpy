@@ -173,6 +173,6 @@ References
 - Nice Java implementation [Orchid](https://github.com/subgraph/Orchid)
 
 
-[Python Versions]:      https://img.shields.io/badge/python-3.6,%203.7,%203.8-blue.svg
+[Python Versions]:      https://img.shields.io/badge/python-3.6,%203.7,%203.8,%203.9-blue.svg
 [Issue]:                https://github.com/torpyorg/torpy/issues
 [PR]:                   https://github.com/torpyorg/torpy/pulls

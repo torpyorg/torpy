@@ -38,6 +38,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
     keywords='python proxy anonymity privacy socks tor protocol onion hiddenservice',
     packages=find_packages(exclude=['tests']),
