@@ -51,7 +51,7 @@ class TorClient:
     def get_guard(self, by_flags=None):
         # TODO: add another stuff to filter guards
         guard_router = self._consensus.get_random_guard_node(by_flags)
-        return TorGuard(guard_router, purpose="TorClient", consensus=self._consensus, auth_data=self._auth_data)
+        return TorGuard(guard_router, purpose='TorClient', consensus=self._consensus, auth_data=self._auth_data)
 
     @contextmanager
     def create_circuit(self, hops_count=3, guard_by_flags=None) -> 'ContextManager[TorCircuit]':
@@ -59,9 +59,11 @@ class TorClient:
             yield guard.create_circuit(hops_count)
 
     def __enter__(self):
+        """Start using the tor client."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close the tor client."""
         self.close()
 
     def close(self):

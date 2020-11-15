@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from torpy.cells import CellRelayRendezvous2
 from torpy.utils import AuthType
 from torpy.parsers import IntroPointParser, HSDescriptorParser
-from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor, b64decode
+from torpy.crypto_common import sha1, aes_update, aes_ctr_decryptor, b64decode, curve25519_public_from_bytes
 
 if TYPE_CHECKING:
     from torpy.circuit import TorCircuit
@@ -77,8 +77,8 @@ class HiddenService:
             # tor ref: hs_parse_address
             decoded = b32decode(onion_address.upper())
             pubkey = decoded[:self.ED25519_PUBKEY_LEN]
-            checksum = decoded[self.ED25519_PUBKEY_LEN:self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED]
-            version = decoded[self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED:]
+            # checksum decoded[self.ED25519_PUBKEY_LEN:self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED]
+            # version decoded[self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED:]
             return onion_address, None, curve25519_public_from_bytes(pubkey)
             # fetch_v3_desc
             # pick_hsdir_v3
@@ -94,7 +94,7 @@ class HiddenService:
 
     @property
     def permanent_id(self):
-        """service-id / permanent-id"""
+        """service-id or permanent-id."""
         return self._permanent_id
 
     @property

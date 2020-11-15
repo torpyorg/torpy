@@ -21,7 +21,6 @@ from base64 import b32decode, b16encode
 from threading import Lock
 
 from torpy.utils import retry, log_retry, cached_property
-from torpy.http.client import HttpStreamClient
 from torpy.documents import TorDocumentsFactory
 from torpy.guard import TorGuard
 from torpy.parsers import RouterDescriptorParser
@@ -212,7 +211,7 @@ class TorConsensus:
     @retry(3, BaseException,
            log_func=functools.partial(log_retry, msg='Retry with another authority...'))
     def renew_certs(self, signing_idents):
-        key_certificates_raw = self._authorities.download_public_keys(signing_idents)
+        key_certificates_raw = self.download_public_keys(signing_idents)
         certs = DirKeyCertificateList(key_certificates_raw)
         self._certs = certs
         self._cache_storage.save_document(certs)
@@ -281,7 +280,7 @@ class TorConsensus:
 
     @cached_property
     def _auth_dir_circuit(self):
-        self._auth_guard, circuit = self._create_dir_circuit(authority=True, purpose="Consensus/PublicKeys downloader")
+        self._auth_guard, circuit = self._create_dir_circuit(authority=True, purpose='Consensus/PublicKeys downloader')
         return circuit
 
     def _get_auth_dir_client(self):
@@ -289,7 +288,7 @@ class TorConsensus:
 
     @cached_property
     def _dir_circuit(self):
-        self._guard, circuit = self._create_dir_circuit(authority=False, purpose="Router descriptor downloader")
+        self._guard, circuit = self._create_dir_circuit(authority=False, purpose='Router descriptor downloader')
         return circuit
 
     def _get_dir_client(self):
@@ -342,7 +341,7 @@ class TorConsensus:
                 status, response = dir_client.get(url)
             if status != 200:
                 raise FetchDescriptorError(f"Can't fetch descriptor from {url}. Status = {status}")
-            logger.info("Got descriptor")
+            logger.info('Got descriptor')
         except TimeoutError as e:
             logger.debug(e)
             raise FetchDescriptorError(f"Can't fetch descriptor from {url}")

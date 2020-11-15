@@ -54,7 +54,9 @@ class HttpStreamClient:
         self._stream.close()
 
     def __enter__(self):
+        """Start using the http client."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close the http client."""
         self.close()

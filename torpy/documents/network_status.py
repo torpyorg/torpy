@@ -14,17 +14,13 @@
 #
 
 import logging
-import socket
 from datetime import datetime
 from enum import unique, Enum, auto
-from base64 import b16encode
-from urllib.error import URLError, HTTPError
 
 from torpy.documents.basics import TorDocumentObject, TorDocument
 from torpy.documents.items import ItemType, ItemParsers, Item, ItemObject, ItemDate, ItemInt, ItemEnum, ItemMulti
 from torpy.crypto_common import sha3_256, b64decode
-from torpy.utils import cached_property, http_get
-from torpy.parsers import RouterDescriptorParser
+from torpy.utils import cached_property
 
 logger = logging.getLogger(__name__)
 

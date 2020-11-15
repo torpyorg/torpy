@@ -345,7 +345,7 @@ class TorCircuit:
         self.close()
 
     def close(self):
-        logger.debug("Close circuit #%x", self.id)
+        logger.debug('Close circuit #%x', self.id)
         if self._guard is not None:
             self._guard.destroy_circuit(self)
 

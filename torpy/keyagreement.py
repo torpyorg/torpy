@@ -220,7 +220,7 @@ class NtorKeyAgreement(KeyAgreement):
 
     @cached_property
     def _B(self):
-        return curve25519_public_from_bytes(self._onion_router.descriptor.ntor_key)
+        return curve25519_public_from_bytes(self._onion_router.descriptor.ntor_key)  # noqa: N802
 
     @cached_property
     def handshake(self):

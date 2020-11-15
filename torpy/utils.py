@@ -123,10 +123,10 @@ def scheme_to_port(scheme):
         return 21
 
 
-def chunks(l, n):
+def chunks(lst, n):
     """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
 
 def recv_exact(sock, n):
