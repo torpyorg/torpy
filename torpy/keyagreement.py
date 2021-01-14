@@ -219,7 +219,7 @@ class NtorKeyAgreement(KeyAgreement):
         return self._onion_router.fingerprint
 
     @cached_property
-    def _B(self):
+    def _B(self):  # noqa: N802
         return curve25519_public_from_bytes(self._onion_router.descriptor.ntor_key)  # noqa: N802
 
     @cached_property

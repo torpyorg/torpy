@@ -15,10 +15,13 @@
 
 import gzip
 import zlib
+import logging
 from io import BytesIO
 from http.client import parse_headers
 
 from torpy.utils import recv_all
+
+logger = logging.getLogger(__name__)
 
 
 class HttpStreamClient:
@@ -41,6 +44,7 @@ class HttpStreamClient:
         f = BytesIO(header)
         request_line = f.readline().split(b' ')
         protocol, status = request_line[:2]
+        status = int(status)
 
         headers = parse_headers(f)
         if headers['Content-Encoding'] == 'deflate':
@@ -48,7 +52,10 @@ class HttpStreamClient:
         elif headers['Content-Encoding'] == 'gzip':
             body = gzip.decompress(body)
 
-        return int(status), body
+        if status != 200:
+            logger.debug('raw_response = %s', raw_response)
+
+        return status, body
 
     def close(self):
         self._stream.close()

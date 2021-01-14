@@ -17,6 +17,7 @@ import os
 import sys
 import gzip
 import zlib
+import time
 import logging
 import threading
 import contextlib
@@ -69,11 +70,11 @@ def log_retry(exc_info, msg, no_traceback=None):
     logger.warning(msg)
 
 
-def retry(times, exceptions, log_func=None):
+def retry(times, exceptions, delay=1, backoff=0, log_func=None):
     def decorator(func):
         def newfn(*args, **kwargs):
-            attempts = times
-            while attempts:
+            left = times
+            while left:
                 try:
                     return func(*args, **kwargs)
                 except exceptions:
@@ -87,13 +88,17 @@ def retry(times, exceptions, log_func=None):
                         logger.info(
                             'Exception thrown when attempting to run %s, attempt %d of %d',
                             func,
-                            attempts,
+                            times - left,
                             times,
                             exc_info=True,
                         )
-                    attempts -= 1
-                    if not attempts:
+                    left -= 1
+                    if not left:
                         raise
+                    if delay:
+                        total_delay = delay + (times - left) * backoff
+                        logger.debug('Wait %i sec before next retry', total_delay)
+                        time.sleep(total_delay)
 
         return newfn
 

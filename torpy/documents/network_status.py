@@ -14,7 +14,7 @@
 #
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import unique, Enum, auto
 
 from torpy.documents.basics import TorDocumentObject, TorDocument
@@ -220,7 +220,13 @@ class Router:
 
     def __str__(self):
         """Get router string representation."""
-        return f'{self._ip}:{self._or_port} ({self._nickname}; {self._version})'
+        s = f'{self._ip}:{self._or_port}'
+        comm = '; '.join(filter(None, [self._nickname, self._version]))
+        if RouterFlags.Authority in self._flags:
+            s += ' authority'
+        if comm:
+            s += f' ({comm})'
+        return s
 
 
 class RouterObject(TorDocumentObject):
@@ -356,8 +362,14 @@ class NetworkStatusDocument(TorDocument):
             router._consensus = consensus
 
     @property
-    def is_fresh(self):
-        return self.valid_until > datetime.utcnow()
+    def is_live(self):
+        # tor ref: networkstatus_is_live
+        return self.valid_after <= datetime.utcnow() <= self.valid_until
+
+    @property
+    def is_reasonably_live(self):
+        # tor ref: networkstatus_consensus_reasonably_live
+        return self.valid_after - timedelta(hours=24) <= datetime.utcnow() <= self.valid_until + timedelta(hours=24)
 
     @property
     def digest_sha1(self):
