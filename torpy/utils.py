@@ -97,7 +97,7 @@ def retry(times, exceptions, delay=1, backoff=0, log_func=None):
                         raise
                     if delay:
                         total_delay = delay + (times - left) * backoff
-                        logger.debug('Wait %i sec before next retry', total_delay)
+                        logger.info('Wait %i sec before next retry', total_delay)
                         time.sleep(total_delay)
 
         return newfn

@@ -205,21 +205,25 @@ class TorConsensus:
         self._document = self._cache_storage.load_document(NetworkStatusDocument)
         if self._document:
             self._document.link_consensus(self)
-            logger.debug('Loaded %i consensus routers', len(self.document.routers))
+            logger.debug('Loaded %i consensus routers', len(self._document.routers))
         self._certs = self._cache_storage.load_document(DirKeyCertificateList)
 
         self._dir_guard_ttl = self._dir_guard = self._dir_circuit = None
 
     @property
     def document(self):
-        self.renew()
+        return self.get_document()
+
+    def get_document(self, with_renew=True):
+        if with_renew:
+            self.renew()
         return self._document
 
     def close(self):
         if self._dir_guard:
             self._dir_guard.close()
 
-    @retry(5, BaseException, delay=2, backoff=1,
+    @retry(5, BaseException, delay=1, backoff=2,
            log_func=functools.partial(log_retry, msg='Retry with another router...', no_traceback=(socket.timeout,)))
     def renew(self, force=False):
         with self._lock:
@@ -301,17 +305,18 @@ class TorConsensus:
         fingerprint_b = b32decode(fingerprint.upper())
         return next(onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)
 
-    def get_routers(self, flags=None, has_dir_port=True):
+    def get_routers(self, flags=None, has_dir_port=True, with_renew=True):
         """
         Select consensus routers that satisfy certain parameters.
 
         :param flags: Router flags
         :param has_dir_port: Has dir port
+        :param with_renew: do renew consensus if old
         :return: return list of routers
         """
         results = []
 
-        for onion_router in self.document.routers:
+        for onion_router in self.get_document(with_renew=with_renew).routers:
             if flags and not all(f in onion_router.flags for f in flags):
                 continue
             if has_dir_port and not onion_router.dir_port:
@@ -320,15 +325,16 @@ class TorConsensus:
 
         return results
 
-    def get_random_router(self, flags=None, has_dir_port=None):
+    def get_random_router(self, flags=None, has_dir_port=None, with_renew=True):
         """
         Select a random consensus router that satisfy certain parameters.
 
         :param flags: Router flags
         :param has_dir_port: Has dir port
+        :param with_renew: Do renew consensus if old
         :return: router
         """
-        routers = self.get_routers(flags, has_dir_port)
+        routers = self.get_routers(flags, has_dir_port, with_renew)
         return random.choice(routers)
 
     def get_random_guard_node(self, different_flags=None):
@@ -349,7 +355,7 @@ class TorConsensus:
 
     def _create_dir_circuit(self, purpose=None):
         if self._document and self._document.is_reasonably_live:
-            router = self.get_random_router(flags=[RouterFlags.Guard], has_dir_port=True)
+            router = self.get_random_router(flags=[RouterFlags.Guard], with_renew=False)
         else:
             logger.debug('There is no reasonable live consensus... use fallback dirs')
             router = self._fallbacks.get_random()
