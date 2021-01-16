@@ -12,7 +12,13 @@ Torpy can be used to communicate with clearnet hosts or hidden services through 
 - Provide simple urllib [tor_opener](https://github.com/torpyorg/torpy/blob/master/torpy/http/urlopener.py) for making requests without any dependencies
 - Provide simple Socks5 proxy
 
-**Note:** This product is produced independently from the Tor® anonymity software and carries no guarantee from [The Tor Project](https://www.torproject.org/) about quality, suitability or anything else.
+**Donation**
+
+If you find this project interesting, you can send some [Bitcoins](https://bitcoin.org/) to address: `16mF9TYaJKkb9eGbZ5jGuJbodTF3mYvcRF`
+
+**Note**
+
+This product is produced independently from the Tor® anonymity software and carries no guarantee from [The Tor Project](https://www.torproject.org/) about quality, suitability or anything else.
 
 Console examples
 -----------
