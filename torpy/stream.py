@@ -252,7 +252,8 @@ class TorStream:
         if isinstance(address[0], HiddenService):
             return address[0], (address[0].onion, address[1])
         elif address[0].endswith('.onion'):
-            descriptor_cookie, auth_type = self._auth_data.get(address[0], (None, AuthType.No))
+            onion_address = HiddenService.normalize_onion(address[0])
+            descriptor_cookie, auth_type = self._auth_data.get(onion_address, (None, AuthType.No))
             return HiddenService(address[0], descriptor_cookie, auth_type), address
         else:
             return None, address

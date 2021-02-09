@@ -56,7 +56,10 @@ class HiddenService:
     HS_SERVICE_ADDR_LEN_BASE32 = math.ceil(HS_SERVICE_ADDR_LEN * 8 / 5)
 
     def __init__(self, onion_address, descriptor_cookie=None, auth_type=AuthType.No):
-        self._onion_address, self._permanent_id, self._onion_identity_pk = self._parse_onion(onion_address)
+        self._onion_address, self._permanent_id, onion_identity_pk = self.parse_onion(onion_address)
+        self._onion_identity_pk = curve25519_public_from_bytes(onion_identity_pk) if onion_identity_pk else None
+        if self._onion_identity_pk:
+            raise Exception('v3 onion hidden service not supported yet')
         self._descriptor_cookie = b64decode(descriptor_cookie) if descriptor_cookie else None
         self._auth_type = auth_type
         if descriptor_cookie and auth_type == AuthType.No:
@@ -64,22 +67,32 @@ class HiddenService:
         if not descriptor_cookie and auth_type != AuthType.No:
             raise RuntimeError('You must specify descriptor cookie')
 
-    def _parse_onion(self, onion_address):
-        # TODO: only v2 onion
+    @staticmethod
+    def normalize_onion(onion_address):
         if onion_address.endswith('.onion'):
-            onion_address = onion_address[:-6]
+            onion_address = onion_address[:-6].rsplit('.', 1)[-1]
 
-        if len(onion_address) == self.REND_SERVICE_ID_LEN_BASE32:
+        if len(onion_address) != HiddenService.REND_SERVICE_ID_LEN_BASE32 and \
+           len(onion_address) != HiddenService.HS_SERVICE_ADDR_LEN_BASE32:
+            raise Exception(f'Unknown onion address: {onion_address}')
+
+        return onion_address
+
+    @staticmethod
+    def parse_onion(onion_address):
+        onion_address = HiddenService.normalize_onion(onion_address)
+
+        if len(onion_address) == HiddenService.REND_SERVICE_ID_LEN_BASE32:
             permanent_id = b32decode(onion_address.upper())
-            assert len(permanent_id) == self.REND_SERVICE_ID_LEN, 'You must specify valid V2 onion hostname'
+            assert len(permanent_id) == HiddenService.REND_SERVICE_ID_LEN, 'You must specify valid V2 onion hostname'
             return onion_address, permanent_id, None
-        elif len(onion_address) == self.HS_SERVICE_ADDR_LEN_BASE32:
+        elif len(onion_address) == HiddenService.HS_SERVICE_ADDR_LEN_BASE32:
             # tor ref: hs_parse_address
             decoded = b32decode(onion_address.upper())
-            pubkey = decoded[:self.ED25519_PUBKEY_LEN]
+            pubkey = decoded[:HiddenService.ED25519_PUBKEY_LEN]
             # checksum decoded[self.ED25519_PUBKEY_LEN:self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED]
             # version decoded[self.ED25519_PUBKEY_LEN + self.HS_SERVICE_ADDR_CHECKSUM_LEN_USED:]
-            return onion_address, None, curve25519_public_from_bytes(pubkey)
+            return onion_address, None, pubkey
             # fetch_v3_desc
             # pick_hsdir_v3
             # directory_launch_v3_desc_fetch
