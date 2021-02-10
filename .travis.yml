@@ -1,3 +1,4 @@
+os: linux
 dist: bionic
 language: python
 python:
@@ -5,10 +6,7 @@ python:
   - "3.7"
   - "3.8"
   - "3.9"
-sudo: false
 install:
-  - pip install --upgrade pip
-  - pip --version
   - pip install tox-travis coveralls
 script:
   - tox -v
