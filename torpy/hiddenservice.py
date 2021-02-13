@@ -55,6 +55,8 @@ class HiddenService:
     # length ends up to 56 bytes (not counting the terminated NUL byte.)
     HS_SERVICE_ADDR_LEN_BASE32 = math.ceil(HS_SERVICE_ADDR_LEN * 8 / 5)
 
+    HS_NO_AUTH = (None, AuthType.No)
+
     def __init__(self, onion_address, descriptor_cookie=None, auth_type=AuthType.No):
         self._onion_address, self._permanent_id, onion_identity_pk = self.parse_onion(onion_address)
         self._onion_identity_pk = curve25519_public_from_bytes(onion_identity_pk) if onion_identity_pk else None

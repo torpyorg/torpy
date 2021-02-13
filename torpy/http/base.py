@@ -1,6 +1,8 @@
 import threading
 import logging
 
+from torpy.utils import hostname_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,14 +45,14 @@ class TorInfo:
         self._circuits = {}
         self._lock = threading.Lock()
 
-    def get_circuit(self, host):
-        host_key = '.'.join(host.split('.')[-2:])
+    def get_circuit(self, hostname):
+        host_key = hostname_key(hostname)
         logger.debug('[TorInfo] Waiting lock...')
         with self._lock:
             logger.debug('[TorInfo] Got lock...')
             circuit = self._circuits.get(host_key)
             if not circuit:
-                logger.debug('[TorInfo] Create new circuit for %s (key %s)', host, host_key)
+                logger.debug('[TorInfo] Create new circuit for %s (key %s)', hostname, host_key)
                 circuit = self._guard.create_circuit(self._hops_count)
                 self._circuits[host_key] = circuit
             else:

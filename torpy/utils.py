@@ -199,3 +199,7 @@ def http_get(url, timeout=10, headers=None):
         elif response.info().get('Content-Encoding') == 'deflate':
             data = zlib.decompress(data)
         return data.decode('utf-8')
+
+
+def hostname_key(hostname):
+    return '.'.join(hostname.split('.')[-2:])

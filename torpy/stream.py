@@ -31,7 +31,7 @@ from torpy.cells import (
     CellRelayBeginDir,
     CellRelayConnected,
 )
-from torpy.utils import AuthType, chunks
+from torpy.utils import chunks, hostname_key
 from torpy.hiddenservice import HiddenService
 
 logger = logging.getLogger(__name__)
@@ -252,8 +252,8 @@ class TorStream:
         if isinstance(address[0], HiddenService):
             return address[0], (address[0].onion, address[1])
         elif address[0].endswith('.onion'):
-            onion_address = HiddenService.normalize_onion(address[0])
-            descriptor_cookie, auth_type = self._auth_data.get(onion_address, (None, AuthType.No))
+            host_key = hostname_key(address[0])
+            descriptor_cookie, auth_type = self._auth_data.get(host_key, HiddenService.HS_NO_AUTH)
             return HiddenService(address[0], descriptor_cookie, auth_type), address
         else:
             return None, address
@@ -313,9 +313,12 @@ class TorStream:
         self.send_relay(CellRelaySendMe(circuit_id=self._circuit.id))
 
     def _end(self, cell_end):
-        self._state = StreamState.Disconnected
         logger.info('Stream #%i: remote disconnected (reason = %s)', self.id, cell_end.reason.name)
         with self._close_lock, self._data_lock:
+            # For case when _end arrived later than we close
+            if self._state == StreamState.Connected:
+                self._state = StreamState.Disconnected
+
             if self.has_socket_loop:
                 logger.debug('Close our sock...')
                 self._loop.close_sock()
