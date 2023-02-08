@@ -5,5 +5,5 @@
 #    pip-compile setup.py
 #
 cffi==1.14.4              # via cryptography
-cryptography==3.4.4
+cryptography==39.0.1
 pycparser==2.20           # via cffi
