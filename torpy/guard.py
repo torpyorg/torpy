@@ -54,11 +54,17 @@ class TorSender:
 
 
 class TorGuard:
-    def __init__(self, router, purpose=None, consensus=None, auth_data=None):
+    def __init__(self, router, purpose=None, consensus=None, auth_data=None, exit_country=None):
         self._router = router
         self._purpose = purpose
         self._consensus = consensus
         self._auth_data = auth_data
+        if isinstance(exit_country, str) and exit_country.strip():
+            self._exit_country = (exit_country.upper().strip(),)
+        elif isinstance(exit_country, (list, tuple)):
+            self._exit_country = tuple(ec.upper().strip() for ec in exit_country)
+        else:
+            self._exit_country = None
 
         self._state = GuardState.Connecting
         logger.info('Connecting to guard node %s... (%s)', self._router, self._purpose)
@@ -89,6 +95,9 @@ class TorGuard:
     @property
     def auth_data(self):
         return self._auth_data
+    @property
+    def exit_country(self):
+        return self._exit_country
 
     def __enter__(self):
         """Return Guard object."""

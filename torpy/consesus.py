@@ -34,6 +34,14 @@ from torpy.documents.network_status import RouterFlags, NetworkStatusDocument, F
 from torpy.documents.dir_key_certificate import DirKeyCertificateList
 from torpy.documents.network_status_diff import NetworkStatusDiffDocument
 from torpy.dirs import AUTHORITY_DIRS, FALLBACK_DIRS
+try:
+    from location_ipfire_db_reader import LocationDatabase
+    HAVE_IPFIRE = True
+    locdb = None
+except ImportError as ex:
+    HAVE_IPFIRE = False
+class NoRouterFound(Exception):
+    ...
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +313,7 @@ class TorConsensus:
         fingerprint_b = b32decode(fingerprint.upper())
         return next(onion_router for onion_router in self.document.routers if onion_router.fingerprint == fingerprint_b)
 
-    def get_routers(self, flags=None, has_dir_port=True, with_renew=True):
+    def get_routers(self, flags=None, has_dir_port=True, with_renew=True, in_country=None):
         """
         Select consensus routers that satisfy certain parameters.
 
@@ -321,11 +329,13 @@ class TorConsensus:
                 continue
             if has_dir_port and not onion_router.dir_port:
                 continue
+            if not self._is_router_in_country(onion_router, in_country):
+                continue
             results.append(onion_router)
 
         return results
 
-    def get_random_router(self, flags=None, has_dir_port=None, with_renew=True):
+    def get_random_router(self, flags=None, has_dir_port=None, with_renew=True, in_country=None):
         """
         Select a random consensus router that satisfy certain parameters.
 
@@ -334,16 +344,18 @@ class TorConsensus:
         :param with_renew: Do renew consensus if old
         :return: router
         """
-        routers = self.get_routers(flags, has_dir_port, with_renew)
+        routers = self.get_routers(flags, has_dir_port, with_renew, in_country=in_country)
+        if not routers:
+            raise NoRouterFound((flags, in_country))
         return random.choice(routers)
 
     def get_random_guard_node(self, different_flags=None):
         flags = different_flags or [RouterFlags.Guard]
         return self.get_random_router(flags)
 
-    def get_random_exit_node(self):
+    def get_random_exit_node(self, in_country=None):
         flags = [RouterFlags.Fast, RouterFlags.Running, RouterFlags.Valid, RouterFlags.Exit]
-        return self.get_random_router(flags)
+        return self.get_random_router(flags, in_country=in_country)
 
     def get_random_middle_node(self):
         flags = [RouterFlags.Fast, RouterFlags.Running, RouterFlags.Valid]
@@ -453,3 +465,17 @@ class TorConsensus:
                         idx = (i + 1 + j) % len(hsdir_router_list)
                         yield hsdir_router_list[idx]
                     break
+    def _is_router_in_country(self, onion_router, in_country):
+        if in_country is None or not bool(in_country):
+            return True
+
+        if not HAVE_IPFIRE:
+            return True
+
+        LocationDatabase.download('location.db')
+
+        global locdb
+        if locdb is None:
+            locdb = LocationDatabase('location.db')
+
+        return locdb.find_country(onion_router.ip).upper() in in_country

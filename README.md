@@ -117,13 +117,16 @@ from torpy import TorClient
 hostname = 'ifconfig.me'  # It's possible use onion hostname here as well
 with TorClient() as tor:
     # Choose random guard node and create 3-hops circuit
-    with tor.create_circuit(3) as circuit:
+    with tor.create_circuit(3, exit_country='FR') as circuit:
         # Create tor stream to host
         with circuit.create_stream((hostname, 80)) as stream:
             # Now we can communicate with host
             stream.send(b'GET / HTTP/1.0\r\nHost: %s\r\n\r\n' % hostname.encode())
             recv = stream.recv(1024)
 ```
+
+The `exit_country` behaviour isn't available out-of-the-box, but can be enabled via `pip install torpy[exit_country]`.
+
 
 TorHttpAdapter is a convenient Tor adapter for the [requests library](https://2.python-requests.org/en/master/user/advanced/#transport-adapters).
 The following example shows the usage of TorHttpAdapter for multi-threaded HTTP requests:

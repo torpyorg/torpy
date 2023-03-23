@@ -48,14 +48,14 @@ class TorClient:
                                                         msg='Retry with another guard...',
                                                         no_traceback=(socket.timeout, TorSocketConnectError,))
            )
-    def get_guard(self, by_flags=None):
+    def get_guard(self, by_flags=None, exit_country=None):
         # TODO: add another stuff to filter guards
         guard_router = self._consensus.get_random_guard_node(by_flags)
-        return TorGuard(guard_router, purpose='TorClient', consensus=self._consensus, auth_data=self._auth_data)
+        return TorGuard(guard_router, purpose='TorClient', consensus=self._consensus, auth_data=self._auth_data, exit_country=exit_country)
 
     @contextmanager
-    def create_circuit(self, hops_count=3, guard_by_flags=None) -> 'ContextManager[TorCircuit]':
-        with self.get_guard(guard_by_flags) as guard:
+    def create_circuit(self, hops_count=3, exit_country=None, guard_by_flags=None) -> 'ContextManager[TorCircuit]':
+        with self.get_guard(guard_by_flags, exit_country=exit_country) as guard:
             yield guard.create_circuit(hops_count)
 
     def __enter__(self):
