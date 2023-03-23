@@ -585,7 +585,7 @@ class TorCircuit:
         logger.info('Building %i hops circuit...', hops_count)
         while self.nodes_count < hops_count:
             if self.nodes_count == hops_count - 1:
-                router = self._guard.consensus.get_random_exit_node()
+                router = self._guard.consensus.get_random_exit_node(in_country=self._guard.exit_country)
             else:
                 router = self._guard.consensus.get_random_middle_node()
 
